@@ -16,4 +16,8 @@ public class ApiCategoryDao extends ServiceImpl<ApiCategoryMapper, ApiCategory> 
                 .like(StringUtils.isNotBlank(request.getDescription()), ApiCategory::getDescription, request.getDescription())
                 .page(new Page<>(request.getCurrent(), request.getPageSize()));
     }
+
+    public long getCategoryCount() {
+        return this.count();
+    }
 }

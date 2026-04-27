@@ -14,4 +14,10 @@ public class ApiResponseParamDao extends ServiceImpl<ApiResponseParamMapper, Api
                 .eq(ApiResponseParam::getApiId, apiId)
                 .list();
     }
+
+    public boolean deleteByApiId(Long apiId) {
+        return lambdaUpdate()
+                .eq(ApiResponseParam::getApiId, apiId)
+                .remove();
+    }
 }

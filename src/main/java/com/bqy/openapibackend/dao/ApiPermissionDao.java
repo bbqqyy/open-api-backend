@@ -31,4 +31,10 @@ public class ApiPermissionDao extends ServiceImpl<ApiPermissionMapper, ApiPermis
                 .eq(ApiPermission::getUserId, userId)
                 .one();
     }
+
+    public boolean deleteByApiId(Long apiId) {
+        return lambdaUpdate()
+                .eq(ApiPermission::getApiId, apiId)
+                .remove();
+    }
 }

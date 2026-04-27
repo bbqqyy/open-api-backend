@@ -21,4 +21,10 @@ public class ThrowUtils {
             throw new OpzException(statusCode);
         }
     }
+
+    public static void throwIf(boolean condition, StatusCode statusCode, String message) {
+        if (condition) {
+            throw new OpzException(statusCode, message);
+        }
+    }
 }

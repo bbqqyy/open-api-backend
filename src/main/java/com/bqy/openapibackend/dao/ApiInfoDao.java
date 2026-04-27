@@ -54,4 +54,14 @@ public class ApiInfoDao extends ServiceImpl<ApiInfoMapper, ApiInfo> {
                 .eq(ObjectUtils.isNotEmpty(request.getIsOnline()), ApiInfo::getIsOnline, request.getIsOnline())
                 .page(new Page<>(request.getCurrent(), request.getPageSize()));
     }
+
+    public long getApiCount() {
+        return this.count();
+    }
+
+    public long getApiCountByCategory(Long categoryId) {
+        return this.lambdaQuery()
+                .eq(ApiInfo::getCategoryId, categoryId)
+                .count();
+    }
 }

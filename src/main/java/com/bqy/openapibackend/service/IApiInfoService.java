@@ -48,4 +48,6 @@ public interface IApiInfoService {
     Page<ApiApplyVO> getMyReceivedApiApply(ApplyApiQueryRequest applyApiQueryRequest, HttpServletRequest request);
 
     Object invokeApi(Long apiId, Map<String, Object> params, HttpServletRequest request);
+
+    Boolean deleteApiInfo(ApiInfoDeleteRequest request, HttpServletRequest servletRequest);
 }

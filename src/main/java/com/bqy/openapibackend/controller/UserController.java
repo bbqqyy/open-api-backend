@@ -5,11 +5,14 @@ import com.bqy.openapibackend.annotation.AuthorCheck;
 import com.bqy.openapibackend.common.ApiResponse;
 import com.bqy.openapibackend.common.UserConstant;
 import com.bqy.openapibackend.model.request.user.*;
+import com.bqy.openapibackend.model.vo.ApiKeysVO;
 import com.bqy.openapibackend.model.vo.LoginUserVO;
+import com.bqy.openapibackend.model.vo.RegisterResultVO;
 import com.bqy.openapibackend.model.vo.UserVO;
 import com.bqy.openapibackend.service.IUserService;
 import com.bqy.openapibackend.util.ThrowUtils;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.responses.ApiResponses;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
@@ -33,11 +36,16 @@ public class UserController {
     @Resource
     private IUserService userService;
 
-    @Operation(summary = "用户注册", description = "注册新用户账号")
+    @Operation(summary = "用户注册", description = "注册新用户账号，返回包含 AccessKey 和 SecretKey 的注册结果")
+    @ApiResponses(value = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "0", description = "注册成功"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "40001", description = "账号已存在"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "40000", description = "密码不一致或其他参数错误")
+    })
     @PostMapping("/register")
-    public ApiResponse<Long> register(@Valid @RequestBody UserRegisterRequest request) {
+    public ApiResponse<RegisterResultVO> register(@Valid @RequestBody UserRegisterRequest request) {
         ThrowUtils.throwIf(request == null, "请求体不能为空");
-        long result = userService.register(request.getUserAccount(), request.getUserPassWord(), request.getCheckPassWord(), request.getUserName(), request.getPhoneNumber());
+        RegisterResultVO result = userService.register(request.getUserAccount(), request.getUserPassWord(), request.getCheckPassWord(), request.getUserName(), request.getPhoneNumber());
         return ApiResponse.success(result);
     }
 
@@ -89,5 +97,25 @@ public class UserController {
         return ApiResponse.success(userService.updateUser(request));
     }
 
+    @Operation(summary = "获取 API 密钥", description = "获取当前登录用户的 AccessKey 和 SecretKey（SecretKey 部分显示）")
+    @ApiResponses(value = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "0", description = "获取成功"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "40100", description = "未登录")
+    })
+    @GetMapping("/api-keys")
+    public ApiResponse<ApiKeysVO> getApiKeys(HttpServletRequest request) {
+        return ApiResponse.success(userService.getApiKeys(request));
+    }
+
+    @Operation(summary = "重新生成 API 密钥", description = "为当前登录用户重新生成 AccessKey 和 SecretKey，旧的密钥将立即失效")
+    @ApiResponses(value = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "0", description = "生成成功"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "40100", description = "未登录"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "50000", description = "生成失败")
+    })
+    @PostMapping("/regenerate-api-keys")
+    public ApiResponse<RegisterResultVO> regenerateApiKeys(HttpServletRequest request) {
+        return ApiResponse.success(userService.regenerateApiKeys(request));
+    }
 
 }

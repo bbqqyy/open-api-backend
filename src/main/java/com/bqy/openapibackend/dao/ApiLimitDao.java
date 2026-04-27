@@ -12,4 +12,10 @@ public class ApiLimitDao extends ServiceImpl<ApiLimitMapper, ApiLimit> {
                 .eq(ApiLimit::getApiId, apiId)
                 .one();
     }
+
+    public boolean deleteByApiId(Long apiId) {
+        return lambdaUpdate()
+                .eq(ApiLimit::getApiId, apiId)
+                .remove();
+    }
 }

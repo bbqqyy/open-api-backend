@@ -62,4 +62,8 @@ public class UserDao extends ServiceImpl<UserMapper, User> {
                 .like(StringUtils.isNotBlank(request.getPhoneNumber()), User::getPhoneNumber, request.getPhoneNumber())
                 .page(new Page<>(request.getCurrent(), request.getPageSize()));
     }
+
+    public long getUserCount() {
+        return this.count();
+    }
 }

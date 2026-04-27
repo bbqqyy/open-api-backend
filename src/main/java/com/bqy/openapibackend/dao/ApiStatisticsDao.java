@@ -24,4 +24,10 @@ public class ApiStatisticsDao extends ServiceImpl<ApiStatisticsMapper, ApiStatis
                 .orderByAsc(ApiStatistics::getStatDate)
                 .list();
     }
+
+    public boolean deleteByApiId(Long apiId) {
+        return lambdaUpdate()
+                .eq(ApiStatistics::getApiId, apiId)
+                .remove();
+    }
 }

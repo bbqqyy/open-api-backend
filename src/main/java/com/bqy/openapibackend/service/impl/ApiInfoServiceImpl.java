@@ -4,13 +4,9 @@ import cn.hutool.core.bean.BeanUtil;
 import cn.hutool.core.collection.CollectionUtil;
 import cn.hutool.core.date.StopWatch;
 import cn.hutool.core.util.ObjectUtil;
-import cn.hutool.http.HttpUtil;
 import cn.hutool.json.JSONUtil;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
-import com.bqy.openapibackend.common.ApiApplyConstant;
-import com.bqy.openapibackend.common.ApiInvokeStatus;
-import com.bqy.openapibackend.common.CommonConstant;
-import com.bqy.openapibackend.common.StatusCode;
+import com.bqy.openapibackend.common.*;
 import com.bqy.openapibackend.dao.*;
 import com.bqy.openapibackend.exception.OpzException;
 import com.bqy.openapibackend.model.entity.*;
@@ -35,7 +31,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpMethod;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import org.springframework.web.client.RestTemplate;
 
 import java.util.HashMap;
 import java.util.List;
@@ -87,6 +82,9 @@ public class ApiInfoServiceImpl implements IApiInfoService {
 
     @Resource
     private ApiStatisticsDao apiStatisticsDao;
+
+    @Resource
+    private ApiAnalysisReportDao apiAnalysisReportDao;
 
     @Value("${api.url}")
     private String apiUrl;
@@ -449,6 +447,65 @@ public class ApiInfoServiceImpl implements IApiInfoService {
         Page<ApiApplyVO> apiApplyVOPage = new Page<>(apiPermissionPage.getCurrent(), apiPermissionPage.getSize(), apiPermissionPage.getTotal());
         apiApplyVOPage.setRecords(apiApplyVOList);
         return apiApplyVOPage;
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Boolean deleteApiInfo(ApiInfoDeleteRequest request, HttpServletRequest servletRequest) {
+        // 1. 参数校验
+        ThrowUtils.throwIf(request == null || request.getId() == null, "请求参数不合法");
+        Long apiId = request.getId();
+        ThrowUtils.throwIf(apiId <= 0, "API ID不合法");
+
+        // 2. 获取当前登录用户
+        User loginUser = LoginUserUtils.getLoginUser(servletRequest);
+        ThrowUtils.throwIf(loginUser == null, StatusCode.NOT_FOUND_ERROR);
+
+        // 3. 获取API信息
+        ApiInfo apiInfo = apiInfoDao.getApiInfoById(apiId);
+        ThrowUtils.throwIf(ObjectUtils.isEmpty(apiInfo), StatusCode.NOT_FOUND_ERROR);
+
+        // 4. 权限检查：只有API的创建者或管理员可以删除
+        if (!StringUtils.equals(UserConstant.ADMIN, loginUser.getUserRole())) {
+            ThrowUtils.throwIf(!ObjectUtils.equals(loginUser.getId(), apiInfo.getUserId()), StatusCode.NO_AUTH_ERROR);
+        }
+
+        // 5. 删除API的所有关联信息（按外键关系删除）
+        try {
+            // 5.1 删除API权限记录（api_permission 表关联 apiId）
+            apiPermissionDao.deleteByApiId(apiId);
+
+            // 5.2 删除API请求参数定义（api_param 表关联 apiId）
+            apiParamDao.deleteByApiId(apiId);
+
+            // 5.3 删除API响应参数定义（api_response_param 表关联 apiId）
+            apiResponseParamDao.deleteByApiId(apiId);
+
+            // 5.4 删除API限流规则（api_limit 表关联 apiId）
+            apiLimitDao.deleteByApiId(apiId);
+
+            // 5.5 删除API审核记录（api_review 表关联 apiId）
+            apiReviewDao.deleteByApiId(apiId);
+
+            // 5.6 删除API调用日志（api_call_log 表关联 apiId）
+            apiCallLogDao.deleteByApiId(apiId);
+
+            // 5.7 删除API统计数据（api_statistics 表关联 apiId）
+            apiStatisticsDao.deleteByApiId(apiId);
+
+            // 5.8 删除API分析报告（api_analysis_report 表关联 apiId）
+            apiAnalysisReportDao.deleteByApiId(apiId);
+
+            // 5.9 最后删除API本身（api_info 表）
+            boolean result = apiInfoDao.removeById(apiId);
+            ThrowUtils.throwIf(!result, "删除API失败，数据库发生异常");
+
+            log.info("API删除成功，apiId={}, 操作用户={}, 已清理所有关联数据", apiId, loginUser.getId());
+            return Boolean.TRUE;
+        } catch (Exception e) {
+            log.error("API删除失败，apiId={}, 错误信息：{}", apiId, e.getMessage(), e);
+            throw new OpzException(StatusCode.SYSTEM_ERROR, "API删除失败：" + e.getMessage());
+        }
     }
 
 }
