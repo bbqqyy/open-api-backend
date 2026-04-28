@@ -86,12 +86,15 @@ public class ApiInfoServiceImpl implements IApiInfoService {
     @Resource
     private ApiAnalysisReportDao apiAnalysisReportDao;
 
+    @Resource
+    private LoginUserUtils loginUserUtils;
+
     @Value("${api.url}")
     private String apiUrl;
 
     @Override
     public Boolean addApiInfo(ApiInfoAddRequest apiInfoAddRequest, HttpServletRequest request) {
-        User user = LoginUserUtils.getLoginUser(request);
+        User user = loginUserUtils.getLoginUser(request);
         ApiInfo apiInfo = new ApiInfo();
         apiInfo.setApiName(apiInfo.getApiName());
         apiInfo.setApiDescription(apiInfo.getApiDescription());
@@ -111,7 +114,7 @@ public class ApiInfoServiceImpl implements IApiInfoService {
 
     @Override
     public Boolean updateApiInfo(ApiInfoUpdateRequest request, HttpServletRequest servletRequest) {
-        User user = LoginUserUtils.getLoginUser(servletRequest);
+        User user = loginUserUtils.getLoginUser(servletRequest);
         ApiInfo apiInfo = apiInfoDao.getApiInfoById(request.getId());
         ThrowUtils.throwIf(ObjectUtils.isEmpty(apiInfo), "api不存在");
         ThrowUtils.throwIf(ObjectUtils.notEqual(user.getId(), apiInfo.getUserId()), StatusCode.NO_AUTH_ERROR);
@@ -128,11 +131,20 @@ public class ApiInfoServiceImpl implements IApiInfoService {
     public Page<ApiInfoVO> getApiPage(ApiInfoQueryRequest request) {
         Page<ApiInfo> apiInfoPage = apiInfoDao.getApiPage(request);
         List<ApiInfo> apiInfoList = apiInfoPage.getRecords();
+
+        // 批量查询用户信息
+        List<Long> userIds = apiInfoList.stream()
+                .map(ApiInfo::getUserId)
+                .distinct()
+                .toList();
+        List<User> userList = userDao.listUserByIds(userIds);
+        Map<Long, String> userMap = userList.stream()
+                .collect(java.util.stream.Collectors.toMap(User::getId, User::getUserName));
+
         List<ApiInfoVO> apiInfoVOList = apiInfoList.stream().map(apiInfo -> {
             ApiInfoVO apiInfoVO = new ApiInfoVO();
             BeanUtil.copyProperties(apiInfo, apiInfoVO);
-            User user = userDao.getUserById(apiInfo.getUserId());
-            apiInfoVO.setUserName(user.getUserName());
+            apiInfoVO.setUserName(userMap.getOrDefault(apiInfo.getUserId(), "未知用户"));
             return apiInfoVO;
         }).toList();
         Page<ApiInfoVO> apiInfoVOPage = new Page<>(apiInfoPage.getCurrent(), apiInfoPage.getSize(), apiInfoPage.getTotal());
@@ -159,7 +171,7 @@ public class ApiInfoServiceImpl implements IApiInfoService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Boolean approveApiInfo(ApiInfoReviewRequest request, HttpServletRequest httpServletRequest) {
-        User user = LoginUserUtils.getLoginUser(httpServletRequest);
+        User user = loginUserUtils.getLoginUser(httpServletRequest);
         ApiInfo apiInfo = apiInfoDao.getApiInfoById(request.getApiId());
         ThrowUtils.throwIf(ObjectUtils.isEmpty(apiInfo), StatusCode.NOT_FOUND_ERROR);
         ThrowUtils.throwIf(ObjectUtils.notEqual(apiInfo.getStatus(), ApiStatusEnum.RELEASING.getCode()), "该接口未完善,不能进行审批");
@@ -179,7 +191,7 @@ public class ApiInfoServiceImpl implements IApiInfoService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Boolean rejectApiInfo(ApiInfoReviewRequest request, HttpServletRequest httpServletRequest) {
-        User user = LoginUserUtils.getLoginUser(httpServletRequest);
+        User user = loginUserUtils.getLoginUser(httpServletRequest);
         ApiInfo apiInfo = apiInfoDao.getApiInfoById(request.getApiId());
         ThrowUtils.throwIf(ObjectUtils.isEmpty(apiInfo), StatusCode.NOT_FOUND_ERROR);
         ThrowUtils.throwIf(ObjectUtils.notEqual(apiInfo.getStatus(), ApiStatusEnum.RELEASING.getCode()), "该接口未完善,不能进行审批");
@@ -198,7 +210,7 @@ public class ApiInfoServiceImpl implements IApiInfoService {
 
     @Override
     public Boolean changeApiLineStatus(ApiInfoLineRequest apiInfoLineRequest, HttpServletRequest request) {
-        User user = LoginUserUtils.getLoginUser(request);
+        User user = loginUserUtils.getLoginUser(request);
         ApiInfo apiInfo = apiInfoDao.getApiInfoById(apiInfoLineRequest.getApiId());
         ThrowUtils.throwIf(ObjectUtils.isEmpty(apiInfo), StatusCode.NOT_FOUND_ERROR);
         ThrowUtils.throwIf(ObjectUtils.notEqual(user.getId(), apiInfo.getUserId()), StatusCode.NO_AUTH_ERROR);
@@ -216,7 +228,7 @@ public class ApiInfoServiceImpl implements IApiInfoService {
 
     @Override
     public Page<ApiInfoVO> getMyApiPage(ApiInfoQueryRequest request, HttpServletRequest httpServletRequest) {
-        User user = LoginUserUtils.getLoginUser(httpServletRequest);
+        User user = loginUserUtils.getLoginUser(httpServletRequest);
         Page<ApiInfo> apiInfoPage = apiInfoDao.getMyApiPage(request, user.getId());
         List<ApiInfo> apiInfoList = apiInfoPage.getRecords();
         List<ApiInfoVO> apiInfoVOList = apiInfoList.stream().map(apiInfo -> {
@@ -263,7 +275,7 @@ public class ApiInfoServiceImpl implements IApiInfoService {
 
     @Override
     public Boolean applyApiInfo(Long apiId, HttpServletRequest request) {
-        User loginUser = LoginUserUtils.getLoginUser(request);
+        User loginUser = loginUserUtils.getLoginUser(request);
         ApiInfo apiInfo = apiInfoDao.getApiInfoById(apiId);
         ThrowUtils.throwIf(ObjectUtils.isEmpty(apiInfo), StatusCode.NOT_FOUND_ERROR);
         ApiPermission apiPermission = new ApiPermission();
@@ -298,14 +310,14 @@ public class ApiInfoServiceImpl implements IApiInfoService {
 
     @Override
     public Page<ApiApplyVO> getMyApiApply(ApplyApiQueryRequest applyApiQueryRequest, HttpServletRequest request) {
-        User loginUser = LoginUserUtils.getLoginUser(request);
+        User loginUser = loginUserUtils.getLoginUser(request);
         Page<ApiPermission> apiPermissionPage = apiPermissionDao.getPageByUserId(applyApiQueryRequest, loginUser.getId());
         return transferToVO(apiPermissionPage);
     }
 
     @Override
     public Page<ApiApplyVO> getMyReceivedApiApply(ApplyApiQueryRequest applyApiQueryRequest, HttpServletRequest request) {
-        User loginUser = LoginUserUtils.getLoginUser(request);
+        User loginUser = loginUserUtils.getLoginUser(request);
         Page<ApiPermission> apiPermissionPage = apiPermissionDao.getPageByOwnerId(applyApiQueryRequest, loginUser.getId());
         return transferToVO(apiPermissionPage);
     }
@@ -313,7 +325,7 @@ public class ApiInfoServiceImpl implements IApiInfoService {
     @Override
     public Object invokeApi(Long apiId, Map<String, Object> params, HttpServletRequest request) {
         String redisKey = BASE_KEY + apiId;
-        User loginUser = LoginUserUtils.getLoginUser(request);
+        User loginUser = loginUserUtils.getLoginUser(request);
         ApiInfo apiInfo = apiInfoDao.getById(apiId);
         ThrowUtils.throwIf(ObjectUtils.isEmpty(apiInfo), StatusCode.NOT_FOUND_ERROR);
         ApiPermission apiPermission = apiPermissionDao.getByApiIdAndUserId(apiId, loginUser.getId());
@@ -458,7 +470,7 @@ public class ApiInfoServiceImpl implements IApiInfoService {
         ThrowUtils.throwIf(apiId <= 0, "API ID不合法");
 
         // 2. 获取当前登录用户
-        User loginUser = LoginUserUtils.getLoginUser(servletRequest);
+        User loginUser = loginUserUtils.getLoginUser(servletRequest);
         ThrowUtils.throwIf(loginUser == null, StatusCode.NOT_FOUND_ERROR);
 
         // 3. 获取API信息

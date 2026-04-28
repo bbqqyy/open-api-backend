@@ -27,10 +27,13 @@ public class CheckApiOwnerInterceptor {
     @Resource
     private ApiInfoDao apiInfoDao;
 
+    @Resource
+    private LoginUserUtils loginUserUtils;
+
     @Around("@annotation(checkApiOwner)")
     public Object checkApiOwner(ProceedingJoinPoint joinPoint, CheckApiOwner checkApiOwner) throws Throwable {
         HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
-        User user = LoginUserUtils.getLoginUser(request);
+        User user = loginUserUtils.getLoginUser(request);
         Long userId = user.getId();
         Object[] args = joinPoint.getArgs();
         String apiFieldName = checkApiOwner.apiFieldName();

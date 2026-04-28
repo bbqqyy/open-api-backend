@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bqy.openapibackend.annotation.AuthorCheck;
 import com.bqy.openapibackend.common.ApiResponse;
 import com.bqy.openapibackend.common.UserConstant;
+import com.bqy.openapibackend.model.entity.User;
 import com.bqy.openapibackend.model.request.user.*;
 import com.bqy.openapibackend.model.vo.ApiKeysVO;
 import com.bqy.openapibackend.model.vo.LoginUserVO;
@@ -58,7 +59,7 @@ public class UserController {
 
     @Operation(summary = "获取当前登录用户", description = "获取当前登录用户信息")
     @GetMapping("/get/login")
-    public ApiResponse<LoginUserVO> getLoginUser(HttpServletRequest request) {
+    public ApiResponse<User> getLoginUser(HttpServletRequest request) {
         return ApiResponse.success(userService.getLoginUser(request));
     }
 

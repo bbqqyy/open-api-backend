@@ -1,6 +1,7 @@
 package com.bqy.openapibackend.service;
 
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.bqy.openapibackend.model.entity.User;
 import com.bqy.openapibackend.model.request.user.UserQueryRequest;
 import com.bqy.openapibackend.model.request.user.UserUpdateRequest;
 import com.bqy.openapibackend.model.vo.ApiKeysVO;
@@ -28,7 +29,7 @@ public interface IUserService {
 
     LoginUserVO login(String userAccount, String userPassword, HttpServletRequest request);
 
-    LoginUserVO getLoginUser(HttpServletRequest request);
+    User getLoginUser(HttpServletRequest request);
 
     Boolean logout(HttpServletRequest request);
 

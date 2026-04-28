@@ -43,6 +43,15 @@ public class UserDao extends ServiceImpl<UserMapper, User> {
                 .one();
     }
 
+    public List<User> listUserByIds(List<Long> ids) {
+        if (ids == null || ids.isEmpty()) {
+            return java.util.Collections.emptyList();
+        }
+        return this.lambdaQuery()
+                .in(User::getId, ids)
+                .list();
+    }
+
     public List<User> listByRequest(UserQueryRequest request) {
         return this.lambdaQuery()
                 .eq(StringUtils.isNotBlank(request.getUserAccount()), User::getUserAccount, request.getUserAccount())

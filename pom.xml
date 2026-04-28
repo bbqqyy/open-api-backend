@@ -95,7 +95,7 @@
             <artifactId>httpclient5</artifactId>
             <version>5.2.1</version> <!-- 推荐使用较新的稳定版本 -->
         </dependency>
-        <!-- 智谱 AI SDK 依赖 -->
+<!--         智谱 AI SDK 依赖 -->
         <dependency>
             <groupId>ai.z.openapi</groupId>
             <artifactId>zai-sdk</artifactId>
@@ -144,11 +144,6 @@
             <releases>
                 <enabled>false</enabled>
             </releases>
-        </repository>
-        <repository>
-            <id>zhipu-releases</id>
-            <name>Zhipu Open Repository</name>
-            <url>https://repo.bigmodel.cn/repository/maven-releases</url>
         </repository>
     </repositories>
     <pluginRepositories>

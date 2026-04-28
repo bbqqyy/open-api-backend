@@ -44,6 +44,9 @@ public class UserServiceImpl implements IUserService {
     @Resource
     private UserDao userDao;
 
+    @Resource
+    private LoginUserUtils loginUserUtils;
+
     private static final String SALT = "quanweijiami";
     private static final DateTimeFormatter DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
 
@@ -89,16 +92,13 @@ public class UserServiceImpl implements IUserService {
         ThrowUtils.throwIf(ObjectUtils.isEmpty(loginUser), "账号密码错误");
         LoginUserVO loginUserVO = new LoginUserVO();
         BeanUtil.copyProperties(loginUser, loginUserVO);
-        request.getSession().setAttribute(UserConstant.USER_LOGIN_STATUS, loginUserVO);
+        request.getSession().setAttribute(UserConstant.USER_LOGIN_STATUS, loginUser.getId());
         return loginUserVO;
     }
 
     @Override
-    public LoginUserVO getLoginUser(HttpServletRequest request) {
-        User loginUser = LoginUserUtils.getLoginUser(request);
-        LoginUserVO loginUserVO = new LoginUserVO();
-        BeanUtil.copyProperties(loginUser, loginUserVO);
-        return loginUserVO;
+    public User getLoginUser(HttpServletRequest request) {
+        return loginUserUtils.getLoginUser(request);
     }
 
     @Override
@@ -153,48 +153,46 @@ public class UserServiceImpl implements IUserService {
 
     @Override
     public ApiKeysVO getApiKeys(HttpServletRequest request) {
-        User loginUser = LoginUserUtils.getLoginUser(request);
-        User user = userDao.getUserById(loginUser.getId());
-        ThrowUtils.throwIf(ObjectUtils.isEmpty(user), "用户不存在");
+        User loginUser = loginUserUtils.getLoginUser(request);
+        ThrowUtils.throwIf(ObjectUtils.isEmpty(loginUser), "用户不存在");
 
         // 对 SecretKey 进行掩码处理
-        String secretKeyMasked = maskSecretKey(user.getSecretKey());
+        String secretKeyMasked = maskSecretKey(loginUser.getSecretKey());
 
         return ApiKeysVO.builder()
-                .accessKey(user.getAccessKey())
+                .accessKey(loginUser.getAccessKey())
                 .secretKeyMasked(secretKeyMasked)
                 .message("完整的 Secret Key 仅在注册时显示一次。若遗忘可在此重新生成（会立即失效之前的密钥）。")
-                .lastUpdated(user.getUpdateTime() != null ?
-                    user.getUpdateTime().format(DATE_FORMATTER) :
-                    user.getCreateTime().format(DATE_FORMATTER))
+                .lastUpdated(loginUser.getUpdateTime() != null ?
+                    loginUser.getUpdateTime().format(DATE_FORMATTER) :
+                    loginUser.getCreateTime().format(DATE_FORMATTER))
                 .build();
     }
 
     @Override
     public RegisterResultVO regenerateApiKeys(HttpServletRequest request) {
-        User loginUser = LoginUserUtils.getLoginUser(request);
-        User user = userDao.getUserById(loginUser.getId());
-        ThrowUtils.throwIf(ObjectUtils.isEmpty(user), "用户不存在");
+        User loginUser = loginUserUtils.getLoginUser(request);
+        ThrowUtils.throwIf(ObjectUtils.isEmpty(loginUser), "用户不存在");
 
         // 生成新的密钥
-        String newAccessKey = generateAccessKey(user.getUserAccount());
-        String newSecretKey = generateSecretKey(user.getUserAccount());
+        String newAccessKey = generateAccessKey(loginUser.getUserAccount());
+        String newSecretKey = generateSecretKey(loginUser.getUserAccount());
 
         // 更新用户密钥
-        user.setAccessKey(newAccessKey);
-        user.setSecretKey(newSecretKey);
-        user.setUpdateTime(LocalDateTime.now());
+        loginUser.setAccessKey(newAccessKey);
+        loginUser.setSecretKey(newSecretKey);
+        loginUser.setUpdateTime(LocalDateTime.now());
 
-        boolean result = userDao.updateById(user);
+        boolean result = userDao.updateById(loginUser);
         ThrowUtils.throwIf(!result, "更新密钥失败");
 
-        log.info("用户重新生成密钥: userId={}, userAccount={}", user.getId(), user.getUserAccount());
+        log.info("用户重新生成密钥: userId={}, userAccount={}", loginUser.getId(), loginUser.getUserAccount());
 
         // 返回新的密钥信息
         return RegisterResultVO.builder()
-                .userId(user.getId())
-                .userAccount(user.getUserAccount())
-                .userName(user.getUserName())
+                .userId(loginUser.getId())
+                .userAccount(loginUser.getUserAccount())
+                .userName(loginUser.getUserName())
                 .accessKey(newAccessKey)
                 .secretKey(newSecretKey)
                 .message("✅ 密钥已重新生成！旧的密钥已失效，请立即更新您的应用配置。" +

@@ -1,6 +1,6 @@
 -- API 分析报告表
 -- 用于存储 AI 生成的 API 分析报告，实现报告持久化和历史查询
-
+use open_api;
 CREATE TABLE IF NOT EXISTS `api_analysis_report` (
   `id` bigint NOT NULL AUTO_INCREMENT COMMENT '报告 ID',
   `api_id` bigint NOT NULL COMMENT 'API ID',

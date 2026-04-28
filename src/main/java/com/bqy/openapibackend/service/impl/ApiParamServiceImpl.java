@@ -12,7 +12,6 @@ import com.bqy.openapibackend.model.request.api.ApiParamAddRequest;
 import com.bqy.openapibackend.model.request.api.ApiParamDeleteRequest;
 import com.bqy.openapibackend.model.request.api.ApiParamUpdateRequest;
 import com.bqy.openapibackend.service.IApiParamService;
-import com.bqy.openapibackend.util.LoginUserUtils;
 import com.bqy.openapibackend.util.ThrowUtils;
 import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;

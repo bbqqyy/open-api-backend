@@ -41,6 +41,9 @@ public class AnalysisAccessInterceptor {
     @Resource
     private RedisRateLimiter redisRateLimiter;
 
+    @Resource
+    private LoginUserUtils loginUserUtils;
+
     /**
      * 分析功能的每日限流配额（次数）
      */
@@ -51,7 +54,7 @@ public class AnalysisAccessInterceptor {
         try {
             // 1. 获取当前登录用户和 API ID
             HttpServletRequest request = ((ServletRequestAttributes) RequestContextHolder.currentRequestAttributes()).getRequest();
-            User user = LoginUserUtils.getLoginUser(request);
+            User user = loginUserUtils.getLoginUser(request);
             Long userId = user.getId();
 
             Object[] args = joinPoint.getArgs();

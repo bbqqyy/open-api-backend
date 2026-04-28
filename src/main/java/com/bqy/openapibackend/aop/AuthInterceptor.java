@@ -19,12 +19,15 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Component
 public class AuthInterceptor {
 
+    @jakarta.annotation.Resource
+    private LoginUserUtils loginUserUtils;
+
     @Around("@annotation(authorCheck)")
     public Object doInterceptor(ProceedingJoinPoint joinPoint, AuthorCheck authorCheck) throws Throwable {
         String mustRole = authorCheck.mustRole();
         RequestAttributes requestAttributes = RequestContextHolder.currentRequestAttributes();
         HttpServletRequest request = ((ServletRequestAttributes) requestAttributes).getRequest();
-        User loginUser = LoginUserUtils.getLoginUser(request);
+        User loginUser = loginUserUtils.getLoginUser(request);
         if (StringUtils.isNotBlank(mustRole)) {
             ThrowUtils.throwIf(!StringUtils.equals(mustRole, loginUser.getUserRole()), StatusCode.NO_AUTH_ERROR);
         }
