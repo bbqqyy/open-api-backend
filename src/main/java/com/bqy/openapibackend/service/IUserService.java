@@ -9,6 +9,7 @@ import com.bqy.openapibackend.model.vo.LoginUserVO;
 import com.bqy.openapibackend.model.vo.RegisterResultVO;
 import com.bqy.openapibackend.model.vo.UserVO;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -58,4 +59,13 @@ public interface IUserService {
      * @return 新的注册结果，包含新的 AccessKey 和 SecretKey
      */
     RegisterResultVO regenerateApiKeys(HttpServletRequest request);
+
+    /**
+     * 上传用户头像
+     *
+     * @param file    头像文件（jpg/png/gif，最大 5MB）
+     * @param request HTTP 请求（用于获取当前登录用户）
+     * @return 头像访问 URL
+     */
+    String uploadAvatar(MultipartFile file, HttpServletRequest request);
 }

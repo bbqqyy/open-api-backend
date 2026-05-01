@@ -7,8 +7,8 @@ import lombok.Getter;
 @AllArgsConstructor
 public enum ApiOnlineEnum {
 
-    ONLINE(0, "上线"),
-    OFFLINE(1, "下线");
+    OFFLINE(0, "下线"),
+    ONLINE(1, "上线");
 
     private final int code;
     private final String message;

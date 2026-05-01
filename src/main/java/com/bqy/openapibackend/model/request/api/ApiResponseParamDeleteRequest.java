@@ -5,8 +5,8 @@ import lombok.Data;
 
 @Data
 public class ApiResponseParamDeleteRequest {
-    @Positive(message = "Id必须大于0")
-    private Long Id;
+    @Positive(message = "id必须大于0")
+    private Long id;
     @Positive(message = "apiId必须大于0")
     private Long apiId;
 }

@@ -3,15 +3,14 @@ package com.bqy.openapibackend.model.entity;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
-
-import java.io.Serial;
-import java.io.Serializable;
-import java.time.LocalDateTime;
-
 import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Getter;
 import lombok.Setter;
 import lombok.ToString;
+
+import java.io.Serial;
+import java.io.Serializable;
+import java.time.LocalDateTime;
 
 /**
  * <p>
@@ -24,7 +23,7 @@ import lombok.ToString;
 @Getter
 @Setter
 @ToString
-@TableName("api_response_param")
+@TableName("api_permission")
 @Schema(description = "")
 public class ApiPermission implements Serializable {
     @Serial

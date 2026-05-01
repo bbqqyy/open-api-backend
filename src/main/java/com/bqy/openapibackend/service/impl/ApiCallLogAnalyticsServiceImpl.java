@@ -39,13 +39,14 @@ public class ApiCallLogAnalyticsServiceImpl implements IApiCallLogAnalyticsServi
     public Page<ApiCallLogVO> queryCallLogs(Long apiId, Long userId, String status,
                                              LocalDateTime startTime, LocalDateTime endTime,
                                              int pageNum, int pageSize) {
+        LocalDateTime normalizedEnd = normalizeEndTime(endTime);
         // 查询日志
         Page<ApiCallLog> logPage = apiCallLogDao.lambdaQuery()
                 .eq(apiId != null, ApiCallLog::getApiId, apiId)
                 .eq(userId != null, ApiCallLog::getUserId, userId)
                 .eq(status != null && !status.isEmpty(), ApiCallLog::getStatus, status)
                 .ge(startTime != null, ApiCallLog::getCallTime, startTime)
-                .le(endTime != null, ApiCallLog::getCallTime, endTime)
+                .le(normalizedEnd != null, ApiCallLog::getCallTime, normalizedEnd)
                 .orderByDesc(ApiCallLog::getCallTime)
                 .page(new Page<>(pageNum, pageSize));
 
@@ -62,49 +63,41 @@ public class ApiCallLogAnalyticsServiceImpl implements IApiCallLogAnalyticsServi
 
     @Override
     public ApiCallAnalyticsVO getOverallAnalytics(LocalDateTime startTime, LocalDateTime endTime) {
+        LocalDateTime normalizedEnd = normalizeEndTime(endTime);
         List<ApiCallLog> logs = apiCallLogDao.lambdaQuery()
                 .ge(ApiCallLog::getCallTime, startTime)
-                .le(ApiCallLog::getCallTime, endTime)
+                .le(ApiCallLog::getCallTime, normalizedEnd)
                 .list();
 
-        return buildAnalytics(logs, startTime, endTime);
+        return buildAnalytics(logs, startTime, normalizedEnd);
     }
 
     @Override
     public ApiCallAnalyticsVO getApiAnalytics(Long apiId, LocalDateTime startTime, LocalDateTime endTime) {
+        LocalDateTime normalizedEnd = normalizeEndTime(endTime);
         List<ApiCallLog> logs = apiCallLogDao.lambdaQuery()
                 .eq(ApiCallLog::getApiId, apiId)
                 .ge(ApiCallLog::getCallTime, startTime)
-                .le(ApiCallLog::getCallTime, endTime)
+                .le(ApiCallLog::getCallTime, normalizedEnd)
                 .list();
 
-        return buildAnalytics(logs, startTime, endTime);
-    }
-
-    @Override
-    public ApiCallAnalyticsVO getUserAnalytics(Long userId, LocalDateTime startTime, LocalDateTime endTime) {
-        List<ApiCallLog> logs = apiCallLogDao.lambdaQuery()
-                .eq(ApiCallLog::getUserId, userId)
-                .ge(ApiCallLog::getCallTime, startTime)
-                .le(ApiCallLog::getCallTime, endTime)
-                .list();
-
-        return buildAnalytics(logs, startTime, endTime);
+        return buildAnalytics(logs, startTime, normalizedEnd);
     }
 
     @Override
     public List<ApiCallAnalyticsVO.TimeSeriesData> getTimeSeriesData(LocalDateTime startTime,
                                                                       LocalDateTime endTime,
                                                                       int intervalMinutes) {
+        LocalDateTime normalizedEnd = normalizeEndTime(endTime);
         List<ApiCallLog> logs = apiCallLogDao.lambdaQuery()
                 .ge(ApiCallLog::getCallTime, startTime)
-                .le(ApiCallLog::getCallTime, endTime)
+                .le(ApiCallLog::getCallTime, normalizedEnd)
                 .list();
 
         // 按时间间隔分组
         Map<LocalDateTime, List<ApiCallLog>> groupedByTime = new TreeMap<>();
 
-        for (LocalDateTime time = startTime; time.isBefore(endTime); time = time.plusMinutes(intervalMinutes)) {
+        for (LocalDateTime time = startTime; time.isBefore(normalizedEnd); time = time.plusMinutes(intervalMinutes)) {
             LocalDateTime nextTime = time.plusMinutes(intervalMinutes);
             final LocalDateTime timePoint = time;
 
@@ -360,6 +353,15 @@ public class ApiCallLogAnalyticsServiceImpl implements IApiCallLogAnalyticsServi
                 .success(0)
                 .failure(0)
                 .build();
+    }
+
+    /**
+     * 将 endTime 补全到当天末尾（23:59:59.999）
+     * 解决前端传入的 endTime 精确到某时刻，导致当天剩余时间数据被漏查的问题
+     */
+    private LocalDateTime normalizeEndTime(LocalDateTime endTime) {
+        if (endTime == null) return null;
+        return endTime.toLocalDate().atTime(23, 59, 59, 999_000_000);
     }
 
     /**

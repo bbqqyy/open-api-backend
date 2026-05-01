@@ -119,33 +119,6 @@ public class ApiCallLogAnalyticsController {
     }
 
     /**
-     * 获取特定用户的分析数据
-     */
-    @GetMapping("/user/{userId}")
-    @Operation(summary = "获取特定用户的分析数据", description = "获取指定用户的详细分析数据，包括调用次数、成功率等")
-    @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "查询成功"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "404", description = "用户不存在")
-    })
-    public ApiResponse<ApiCallAnalyticsVO> getUserAnalytics(
-            @Parameter(description = "用户 ID", example = "1")
-            @PathVariable Long userId,
-
-            @Parameter(description = "开始时间", example = "2026-04-01T00:00:00")
-            @RequestParam
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-            LocalDateTime startTime,
-
-            @Parameter(description = "结束时间", example = "2026-04-30T23:59:59")
-            @RequestParam
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-            LocalDateTime endTime) {
-
-        ApiCallAnalyticsVO result = apiCallLogAnalyticsService.getUserAnalytics(userId, startTime, endTime);
-        return ApiResponse.success(result);
-    }
-
-    /**
      * 获取时间序列数据（用于趋势图）
      */
     @GetMapping("/time-series")
@@ -171,54 +144,6 @@ public class ApiCallLogAnalyticsController {
         List<ApiCallAnalyticsVO.TimeSeriesData> result = apiCallLogAnalyticsService
                 .getTimeSeriesData(startTime, endTime, intervalMinutes);
         return ApiResponse.success(result);
-    }
-
-    /**
-     * 获取响应时间分布数据
-     */
-    @GetMapping("/response-time-distribution")
-    @Operation(summary = "获取响应时间分布", description = "获取指定时间范围内的响应时间分布数据，用于绘制响应时间分布柱状图")
-    @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "查询成功"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "参数错误")
-    })
-    public ApiResponse<ApiCallAnalyticsVO.ResponseTimeDistribution> getResponseTimeDistribution(
-            @Parameter(description = "开始时间", example = "2026-04-01T00:00:00")
-            @RequestParam
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-            LocalDateTime startTime,
-
-            @Parameter(description = "结束时间", example = "2026-04-30T23:59:59")
-            @RequestParam
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-            LocalDateTime endTime) {
-
-        ApiCallAnalyticsVO analytics = apiCallLogAnalyticsService.getOverallAnalytics(startTime, endTime);
-        return ApiResponse.success(analytics.getResponseTimeDistribution());
-    }
-
-    /**
-     * 获取状态分布数据
-     */
-    @GetMapping("/status-distribution")
-    @Operation(summary = "获取状态分布", description = "获取指定时间范围内的成功/失败分布数据，用于绘制状态分布饼图")
-    @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "查询成功"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "参数错误")
-    })
-    public ApiResponse<ApiCallAnalyticsVO.StatusDistribution> getStatusDistribution(
-            @Parameter(description = "开始时间", example = "2026-04-01T00:00:00")
-            @RequestParam
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-            LocalDateTime startTime,
-
-            @Parameter(description = "结束时间", example = "2026-04-30T23:59:59")
-            @RequestParam
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-            LocalDateTime endTime) {
-
-        ApiCallAnalyticsVO analytics = apiCallLogAnalyticsService.getOverallAnalytics(startTime, endTime);
-        return ApiResponse.success(analytics.getStatusDistribution());
     }
 
     /**
@@ -269,28 +194,5 @@ public class ApiCallLogAnalyticsController {
         return ApiResponse.success(analytics.getTopUsers());
     }
 
-    /**
-     * 获取完整分析报告
-     */
-    @GetMapping("/report")
-    @Operation(summary = "获取完整分析报告", description = "获取包含所有分析维度的完整报告（整体数据、时间序列、分布、Top 列表等）")
-    @ApiResponses(value = {
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "200", description = "查询成功"),
-            @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "400", description = "参数错误")
-    })
-    public ApiResponse<ApiCallAnalyticsVO> getCompleteReport(
-            @Parameter(description = "开始时间", example = "2026-04-01T00:00:00")
-            @RequestParam
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-            LocalDateTime startTime,
-
-            @Parameter(description = "结束时间", example = "2026-04-30T23:59:59")
-            @RequestParam
-            @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME)
-            LocalDateTime endTime) {
-
-        ApiCallAnalyticsVO result = apiCallLogAnalyticsService.getOverallAnalytics(startTime, endTime);
-        return ApiResponse.success(result);
-    }
 }
 

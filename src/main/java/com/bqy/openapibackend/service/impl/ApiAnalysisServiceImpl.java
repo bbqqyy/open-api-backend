@@ -22,9 +22,7 @@ import com.bqy.openapibackend.service.IApiAnalysisService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
-import org.reactivestreams.Publisher;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -56,51 +54,6 @@ public class ApiAnalysisServiceImpl implements IApiAnalysisService {
 
     @Resource
     private ZhipuAiConfig zhipuAiConfig;
-
-    @Override
-    public Publisher<String> generateAnalysisReportStream(Long apiId) {
-        try {
-            // 获取分析报告数据
-            ApiAnalysisReportVO reportData = getAnalysisReportData(apiId);
-
-            if (reportData == null) {
-                return Flux.error(new OpzException(StatusCode.NOT_FOUND_ERROR, "无法获取 API 数据"));
-            }
-
-            // 构建 AI 分析提示词
-            String prompt = buildAnalysisPrompt(reportData);
-
-            // 返回流式响应
-            return Flux.create(sink -> {
-                try {
-                    // 调用智谱 AI 流式 API
-                    String analysisContent = callZhipuAIStreaming(prompt);
-
-                    // 模拟流式输出：按段发送分析内容
-                    String[] paragraphs = analysisContent.split("\n\n");
-                    for (String paragraph : paragraphs) {
-                        if (!paragraph.isBlank()) {
-                            sink.next(paragraph + "\n\n");
-                            try {
-                                Thread.sleep(100); // 模拟流式延迟
-                            } catch (InterruptedException e) {
-                                Thread.currentThread().interrupt();
-                                break;
-                            }
-                        }
-                    }
-
-                    sink.complete();
-                } catch (Exception e) {
-                    log.error("生成分析报告失败", e);
-                    sink.error(e);
-                }
-            });
-        } catch (Exception e) {
-            log.error("生成分析报告流异常", e);
-            return Flux.error(e);
-        }
-    }
 
     @Override
     public ApiAnalysisReportVO getAnalysisReportData(Long apiId) {
@@ -315,43 +268,33 @@ public class ApiAnalysisServiceImpl implements IApiAnalysisService {
                 "- 最大响应时间: " + stats.getMaxResponseTime() + "ms\n" +
                 "- 最小响应时间: " + stats.getMinResponseTime() + "ms\n" +
                 "- 唯一调用用户数: " + stats.getUniqueUserCount() + "\n\n" +
-                "请从以下方面进行分析：\n" +
-                "1. 识别调用数据中存在的问题（如高失败率、响应时间过长等）\n" +
-                "2. 提供具体的优化建议（如性能优化、错误处理改进等）\n" +
-                "3. 基于数据趋势提供改进方向\n" +
-                "4. 提供监控和告警的建议\n\n" +
-                "请使用结构化的格式输出分析结果。";
+                "请从以下方面进行分析并严格按照 JSON 格式输出，不要包含任何 Markdown 标记、代码块符号或额外文字：\n" +
+                "{\n" +
+                "  \"identifiedIssues\": [\"问题1\", \"问题2\", ...],\n" +
+                "  \"optimizationSuggestions\": [\"建议1\", \"建议2\", ...]\n" +
+                "}\n\n" +
+                "分析要点：\n" +
+                "1. identifiedIssues：识别调用数据中存在的问题（如高失败率、响应时间过长、并发问题等），每条问题为一个完整的描述字符串\n" +
+                "2. optimizationSuggestions：提供具体可落地的优化建议（性能优化、错误处理、监控告警等），每条建议为一个完整的描述字符串\n" +
+                "只返回 JSON，不要有任何其他内容。";
     }
 
     /**
      * 生成模拟的分析结果
      */
     private String generateMockAnalysis() {
-        return "## API 调用分析报告\n\n" +
-                "### 📊 数据概览\n" +
-                "本报告基于最近的 API 调用数据进行深入分析，为您提供详细的性能指标和优化建议。\n\n" +
-                "### ⚠️ 发现的问题\n" +
-                "1. **响应时间波动较大** - 最大响应时间与最小响应时间的差异显著，建议检查是否存在性能瓶颈。\n" +
-                "2. **失败率需要关注** - 如果失败率大于 5%，建议排查错误日志，定位问题原因。\n" +
-                "3. **并发处理能力** - 在高峰期可能存在限流或超时问题，建议优化并发处理能力。\n\n" +
-                "### 💡 优化建议\n" +
-                "1. **性能优化**\n" +
-                "   - 添加缓存机制以减少数据库查询\n" +
-                "   - 考虑使用异步处理提高响应速度\n" +
-                "   - 优化数据库查询语句\n\n" +
-                "2. **可靠性增强**\n" +
-                "   - 实现重试机制处理临时故障\n" +
-                "   - 添加超时控制\n" +
-                "   - 完善错误处理和日志记录\n\n" +
-                "3. **监控和告警**\n" +
-                "   - 监控响应时间变化趋势\n" +
-                "   - 设置失败率告警阈值\n" +
-                "   - 跟踪高级错误的发生频率\n\n" +
-                "### 📈 改进方向\n" +
-                "- 定期审视 API 性能指标\n" +
-                "- 收集用户反馈并改进服务\n" +
-                "- 持续优化系统架构\n" +
-                "- 提升代码质量和测试覆盖率\n";
+        return "{" +
+                "\"identifiedIssues\": [" +
+                "\"响应时间波动较大：最大响应时间与最小响应时间差异显著，可能存在性能瓶颈\"," +
+                "\"失败率需要关注：若失败率超过 5%，需排查错误日志定位根本原因\"," +
+                "\"并发处理能力不足：高峰期可能存在限流或超时问题\"" +
+                "]," +
+                "\"optimizationSuggestions\": [" +
+                "\"性能优化：添加缓存机制减少数据库查询，考虑使用异步处理提高响应速度，优化数据库查询语句\"," +
+                "\"可靠性增强：实现重试机制处理临时故障，添加超时控制，完善错误处理和日志记录\"," +
+                "\"监控与告警：监控响应时间变化趋势，设置失败率告警阈值，跟踪高频错误的发生情况\"," +
+                "\"持续改进：定期审视 API 性能指标，收集用户反馈并迭代优化，持续提升代码质量和测试覆盖率\"" +
+                "]}";
     }
 
     @Override
@@ -412,36 +355,26 @@ public class ApiAnalysisServiceImpl implements IApiAnalysisService {
         try {
             List<ApiAnalysisReport> reports = apiAnalysisReportDao.getReportsByApiId(apiId, Math.min(limit, 100));
 
-            return reports.stream()
-                    .map(report -> ApiAnalysisReportListVO.builder()
-                            .reportId(report.getId())
-                            .apiId(report.getApiId())
-                            .summary(report.getSummary())
-                            .status(report.getStatus())
-                            .successRate(report.getSuccessRate())
-                            .totalCalls(report.getTotalCalls())
-                            .avgResponseTime(report.getAvgResponseTime())
-                            .maxResponseTime(report.getMaxResponseTime())
-                            .analysisTimeMs(report.getAnalysisTimeMs())
-                            .createdAt(report.getCreatedAt())
-                            .errorMessage(report.getErrorMessage())
-                            .build())
-                    .collect(Collectors.toList());
+        return reports.stream()
+                .map(report -> ApiAnalysisReportListVO.builder()
+                        .reportId(report.getId())
+                        .apiId(report.getApiId())
+                        .summary(report.getSummary())
+                        .status(report.getStatus())
+                        .successRate(report.getSuccessRate())
+                        .totalCalls(report.getTotalCalls())
+                        .avgResponseTime(report.getAvgResponseTime())
+                        .maxResponseTime(report.getMaxResponseTime())
+                        .analysisTimeMs(report.getAnalysisTimeMs())
+                        .createdAt(report.getCreatedAt())
+                        .errorMessage(report.getErrorMessage())
+                        .identifiedIssues(parseJsonList(report.getIdentifiedIssues()))
+                        .optimizationSuggestions(parseJsonList(report.getOptimizationSuggestions()))
+                        .build())
+                .collect(Collectors.toList());
         } catch (Exception e) {
             log.error("查询报告列表失败，apiId={}", apiId, e);
             return new ArrayList<>();
-        }
-    }
-
-    @Override
-    public int clearReports(Long apiId) {
-        try {
-            boolean success = apiAnalysisReportDao.deleteByApiId(apiId);
-            log.info("已清空 API 的分析报告，apiId={}, success={}", apiId, success);
-            return success ? 1 : 0;
-        } catch (Exception e) {
-            log.error("清空报告失败，apiId={}", apiId, e);
-            return 0;
         }
     }
 
@@ -465,19 +398,37 @@ public class ApiAnalysisServiceImpl implements IApiAnalysisService {
             // 3. 保存分析结果到数据库
             var stats = reportData.getCallStatistics();
 
-            ApiAnalysisReport entity = ApiAnalysisReport.builder()
-                    .apiId(apiId)
-                    .reportContent(analysisContent)
-                    .summary(generateSummary(reportData))
-                    .successRate(new java.math.BigDecimal(stats.getSuccessRate()))
-                    .totalCalls(Math.toIntExact(stats.getTotalCalls()))
-                    .avgResponseTime(new java.math.BigDecimal(stats.getAvgResponseTime()))
-                    .maxResponseTime(stats.getMaxResponseTime())
-                    .status("completed")
-                    .analysisTimeMs(analysisTime)
-                    .createdAt(LocalDateTime.now())
-                    .updatedAt(LocalDateTime.now())
-                    .build();
+        // 解析 AI 返回的 JSON，提取问题列表和优化建议
+        List<String> identifiedIssues = new ArrayList<>();
+        List<String> optimizationSuggestions = new ArrayList<>();
+        try {
+            // 去除可能存在的 markdown 代码块标记
+            String cleanedContent = analysisContent.trim()
+                    .replaceAll("(?s)^```[a-zA-Z]*\\s*", "")
+                    .replaceAll("(?s)```\\s*$", "")
+                    .trim();
+            cn.hutool.json.JSONObject jsonObject = JSONUtil.parseObj(cleanedContent);
+            identifiedIssues = JSONUtil.toList(jsonObject.getJSONArray("identifiedIssues"), String.class);
+            optimizationSuggestions = JSONUtil.toList(jsonObject.getJSONArray("optimizationSuggestions"), String.class);
+        } catch (Exception e) {
+            log.warn("解析 AI 返回 JSON 失败，将原始内容存储，apiId={}, content={}", apiId, analysisContent, e);
+        }
+
+        ApiAnalysisReport entity = ApiAnalysisReport.builder()
+                .apiId(apiId)
+                .reportContent(analysisContent)
+                .summary(generateSummary(reportData))
+                .identifiedIssues(JSONUtil.toJsonStr(identifiedIssues))
+                .optimizationSuggestions(JSONUtil.toJsonStr(optimizationSuggestions))
+                .successRate(new java.math.BigDecimal(stats.getSuccessRate()))
+                .totalCalls(Math.toIntExact(stats.getTotalCalls()))
+                .avgResponseTime(new java.math.BigDecimal(stats.getAvgResponseTime()))
+                .maxResponseTime(stats.getMaxResponseTime())
+                .status("completed")
+                .analysisTimeMs(analysisTime)
+                .createdAt(LocalDateTime.now())
+                .updatedAt(LocalDateTime.now())
+                .build();
 
             apiAnalysisReportDao.save(entity);
             log.info("AI 分析报告已生成并保存到数据库, apiId={}, reportId={}, timeMs={}", apiId, entity.getId(), analysisTime);
@@ -486,6 +437,21 @@ public class ApiAnalysisServiceImpl implements IApiAnalysisService {
         } catch (Exception e) {
             log.error("生成 AI 分析报告失败，apiId={}", apiId, e);
             throw new OpzException(StatusCode.SYSTEM_ERROR, "生成 AI 分析报告失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 将 JSON 字符串反序列化为 List<String>，失败时返回空列表
+     */
+    private List<String> parseJsonList(String json) {
+        if (json == null || json.isBlank()) {
+            return new ArrayList<>();
+        }
+        try {
+            return JSONUtil.toList(json, String.class);
+        } catch (Exception e) {
+            log.warn("解析 JSON 列表失败: {}", json, e);
+            return new ArrayList<>();
         }
     }
 

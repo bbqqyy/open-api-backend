@@ -9,6 +9,7 @@ import lombok.NoArgsConstructor;
 import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 /**
  * API 分析报告列表项 VO
@@ -54,5 +55,11 @@ public class ApiAnalysisReportListVO implements Serializable {
 
     @Schema(description = "错误信息（仅当状态为 failed 时）")
     private String errorMessage;
+
+    @Schema(description = "AI 识别的问题列表")
+    private List<String> identifiedIssues;
+
+    @Schema(description = "AI 优化建议列表")
+    private List<String> optimizationSuggestions;
 }
 

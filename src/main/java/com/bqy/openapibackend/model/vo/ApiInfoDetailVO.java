@@ -3,7 +3,6 @@ package com.bqy.openapibackend.model.vo;
 import com.bqy.openapibackend.model.entity.ApiLimit;
 import com.bqy.openapibackend.model.entity.ApiParam;
 import com.bqy.openapibackend.model.entity.ApiResponseParam;
-import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.time.LocalDateTime;
@@ -12,9 +11,15 @@ import java.util.List;
 @Data
 public class ApiInfoDetailVO {
 
+    private Long id;
+
     private String apiName;
 
     private String apiDescription;
+
+    private Long categoryId;
+
+    private String categoryName;
 
     private String url;
 

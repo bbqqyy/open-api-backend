@@ -12,6 +12,8 @@ public class ApiInfoQueryRequest extends PageRequest {
 
     private String apiName;
 
+    private Integer status;
+
     private String apiDescription;
 
     private Integer isOnline;

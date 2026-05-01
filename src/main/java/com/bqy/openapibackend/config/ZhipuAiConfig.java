@@ -48,7 +48,7 @@ public class ZhipuAiConfig {
      * 当 API Key 未配置时，自动禁用
      */
     public boolean isEnabled() {
-        return key != null && !key.equals("4b287e90a22f9a6fd9cce34baf119df9.gc0IXqXCTa8Yp4nn") && !key.isEmpty();
+        return key != null && !key.isEmpty() && key.equals("4b287e90a22f9a6fd9cce34baf119df9.gc0IXqXCTa8Yp4nn");
     }
 }
 

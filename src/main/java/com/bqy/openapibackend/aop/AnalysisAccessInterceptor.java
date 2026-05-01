@@ -79,23 +79,26 @@ public class AnalysisAccessInterceptor {
                 "该 API 未发布成功，无法进行分析"
             );
 
-            // 5. 检查每日分析限流（最多 5 次/天）
-            String rateLimitKey = "api:analysis:" + apiId;
-            boolean allowed = redisRateLimiter.tryAcquire(
-                rateLimitKey,
-                userId,
-                1,      // windowSeconds（不使用 QPS 限制，只用每日限流）
-                100,    // maxQps（设置较大值，主要依赖 dailyLimit）
-                DAILY_ANALYSIS_LIMIT
-            );
+            // 5. 按需检查每日生成次数限流（仅 countAsUsage=true 的接口计入）
+            if (checkApiAnalysisAccess.countAsUsage()) {
+                // key 格式：api:analysis:{apiId}  dailyKey 内部会追加 userId + 日期，按 (api, user, day) 隔离
+                String rateLimitKey = "api:analysis:" + apiId;
+                boolean allowed = redisRateLimiter.tryAcquire(
+                    rateLimitKey,
+                    userId,
+                    1,      // windowSeconds（不使用 QPS 限制，只用每日限流）
+                    100,    // maxQps（设置较大值，主要依赖 dailyLimit）
+                    DAILY_ANALYSIS_LIMIT
+                );
 
-            ThrowUtils.throwIf(
-                !allowed,
-                StatusCode.RATE_LIMIT_ERROR,
-                "每天最多可进行 " + DAILY_ANALYSIS_LIMIT + " 次 API 分析"
-            );
+                ThrowUtils.throwIf(
+                    !allowed,
+                    StatusCode.RATE_LIMIT_ERROR,
+                    "每个 API 每天最多可生成 " + DAILY_ANALYSIS_LIMIT + " 次分析报告"
+                );
+            }
 
-            log.info("API 分析权限检查通过, apiId={}, userId={}", apiId, userId);
+            log.info("API 分析权限检查通过, apiId={}, userId={}, countAsUsage={}", apiId, userId, checkApiAnalysisAccess.countAsUsage());
 
             // 6. 权限验证通过，执行原方法
             return joinPoint.proceed();
@@ -114,14 +117,27 @@ public class AnalysisAccessInterceptor {
      * @return API ID
      */
     private Long extractApiId(Object[] args, String apiFieldName) {
+        // 第一轮：优先从请求体对象中通过反射提取（支持 @RequestBody 场景）
         for (Object arg : args) {
+            if (arg == null || arg instanceof Long || arg instanceof HttpServletRequest
+                    || arg instanceof jakarta.servlet.http.HttpServletResponse) {
+                continue;
+            }
             try {
                 String methodName = "get" + apiFieldName.substring(0, 1).toUpperCase() + apiFieldName.substring(1);
                 Method method = arg.getClass().getMethod(methodName);
-                return (Long) method.invoke(arg);
+                Object value = method.invoke(arg);
+                if (value instanceof Long) {
+                    return (Long) value;
+                }
             } catch (Exception e) {
-                // 继续尝试下一个参数
-                log.debug("Failed to extract API ID from parameter", e);
+                log.debug("Failed to extract API ID from parameter via getter", e);
+            }
+        }
+        // 第二轮：尝试直接匹配 Long 类型参数（支持 @PathVariable Long apiId 场景）
+        for (Object arg : args) {
+            if (arg instanceof Long) {
+                return (Long) arg;
             }
         }
         throw new IllegalArgumentException("无法从请求参数中提取 apiId");

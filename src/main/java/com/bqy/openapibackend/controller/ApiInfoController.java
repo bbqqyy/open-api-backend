@@ -124,6 +124,13 @@ public class ApiInfoController {
         return ApiResponse.success(apiInfoService.changeApiLineStatus(apiInfoLineRequest, request));
     }
 
+    @Operation(summary = "发布API", description = "将API状态改为发布中（提交审核），仅创建者可操作。API当前状态须为待发布或发布失败。")
+    @PostMapping("/release")
+    public ApiResponse<Boolean> releaseApiInfo(@Valid @RequestBody ApiInfoLineRequest request, HttpServletRequest servletRequest) {
+        ThrowUtils.throwIf(request == null, "请求体为空");
+        return ApiResponse.success(apiInfoService.releaseApiInfo(request, servletRequest));
+    }
+
     @Operation(summary = "获取我的API", description = "分页获取当前用户创建的API列表")
     @PostMapping("/page/my")
     public ApiResponse<Page<ApiInfoVO>> getMyApiPage(@RequestBody ApiInfoQueryRequest request, HttpServletRequest httpServletRequest) {
@@ -281,8 +288,19 @@ public class ApiInfoController {
         // 2. 若请求体非空，尝试解析为 JSON Object，合并进 params（POST/PUT/PATCH 场景）
         String contentType = request.getContentType();
         if (contentType != null && contentType.contains("application/json")) {
-            String bodyStr = StreamUtils.copyToString(request.getInputStream(), StandardCharsets.UTF_8);
-            if (bodyStr != null && !bodyStr.isBlank()) {
+            String bodyStr = null;
+            // 优先从 ContentCachingRequestWrapper 缓存读取（AOP 可能已消耗 InputStream）
+            if (request instanceof org.springframework.web.util.ContentCachingRequestWrapper cachingReq) {
+                byte[] cachedBody = cachingReq.getContentAsByteArray();
+                if (cachedBody.length > 0) {
+                    bodyStr = new String(cachedBody, StandardCharsets.UTF_8);
+                }
+            }
+            // 降级：直接读取 InputStream
+            if (bodyStr == null) {
+                bodyStr = StreamUtils.copyToString(request.getInputStream(), StandardCharsets.UTF_8);
+            }
+            if (!bodyStr.isBlank()) {
                 try {
                     Map<String, Object> bodyMap = JSONUtil.toBean(bodyStr, Map.class);
                     params.putAll(bodyMap);

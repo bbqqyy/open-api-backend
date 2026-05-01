@@ -19,6 +19,7 @@ import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.List;
 
@@ -117,6 +118,18 @@ public class UserController {
     @PostMapping("/regenerate-api-keys")
     public ApiResponse<RegisterResultVO> regenerateApiKeys(HttpServletRequest request) {
         return ApiResponse.success(userService.regenerateApiKeys(request));
+    }
+
+    @Operation(summary = "上传用户头像", description = "上传当前登录用户的头像，支持 JPG、PNG、GIF、WEBP 格式，最大 5MB，返回头像访问 URL")
+    @ApiResponses(value = {
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "0", description = "上传成功，返回头像 URL"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "40100", description = "未登录"),
+        @io.swagger.v3.oas.annotations.responses.ApiResponse(responseCode = "40000", description = "文件格式或大小不合法")
+    })
+    @PostMapping(value = "/avatar", consumes = "multipart/form-data")
+    public ApiResponse<String> uploadAvatar(@RequestParam("file") MultipartFile file,
+                                            HttpServletRequest request) {
+        return ApiResponse.success(userService.uploadAvatar(file, request));
     }
 
 }

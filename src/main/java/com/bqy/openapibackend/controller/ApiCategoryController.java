@@ -4,7 +4,6 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.bqy.openapibackend.annotation.AuthorCheck;
 import com.bqy.openapibackend.common.ApiResponse;
 import com.bqy.openapibackend.common.UserConstant;
-import com.bqy.openapibackend.model.entity.ApiCategory;
 import com.bqy.openapibackend.model.request.apicategory.ApiCategoryAddRequest;
 import com.bqy.openapibackend.model.request.apicategory.ApiCategoryDeleteRequest;
 import com.bqy.openapibackend.model.request.apicategory.ApiCategoryQueryRequest;
@@ -17,7 +16,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
-import org.springframework.stereotype.Controller;
+
+import java.util.List;
 
 /**
  * <p>
@@ -57,6 +57,12 @@ public class ApiCategoryController {
     public ApiResponse<Boolean> updateApiCategory(@Valid @RequestBody ApiCategoryUpdateRequest request) {
         ThrowUtils.throwIf(request == null, "请求体为空");
         return ApiResponse.success(apiCategoryService.updateApiCategory(request));
+    }
+
+    @Operation(summary = "获取全部API分类列表", description = "返回所有API分类，用于下拉选择等场景，无需分页")
+    @GetMapping("/list")
+    public ApiResponse<List<ApiCategoryVO>> listApiCategories() {
+        return ApiResponse.success(apiCategoryService.listApiCategories());
     }
 
     @Operation(summary = "分页查询API分类", description = "分页获取API分类列表")

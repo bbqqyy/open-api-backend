@@ -1,9 +1,11 @@
 package com.bqy.openapibackend.model.vo;
 
+import io.swagger.v3.oas.annotations.media.Schema;
 import lombok.Data;
 
 import java.io.Serial;
 import java.io.Serializable;
+import java.time.LocalDateTime;
 
 @Data
 public class UserVO implements Serializable {
@@ -15,6 +17,8 @@ public class UserVO implements Serializable {
 
     private String userAccount;
 
+    private String userPassword;
+
     private String phoneNumber;
 
     private String email;
@@ -25,4 +29,11 @@ public class UserVO implements Serializable {
 
     private String userProfile;
 
+    private String userRole;
+
+    private LocalDateTime editTime;
+
+    private LocalDateTime createTime;
+
+    private LocalDateTime updateTime;
 }

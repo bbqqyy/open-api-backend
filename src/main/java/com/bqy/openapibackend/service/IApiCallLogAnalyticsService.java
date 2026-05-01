@@ -48,16 +48,6 @@ public interface IApiCallLogAnalyticsService {
     ApiCallAnalyticsVO getApiAnalytics(Long apiId, LocalDateTime startTime, LocalDateTime endTime);
 
     /**
-     * 获取特定用户的分析数据
-     *
-     * @param userId    用户 ID
-     * @param startTime 开始时间
-     * @param endTime   结束时间
-     * @return 分析数据
-     */
-    ApiCallAnalyticsVO getUserAnalytics(Long userId, LocalDateTime startTime, LocalDateTime endTime);
-
-    /**
      * 获取按时间分组的数据（用于趋势图）
      *
      * @param startTime     开始时间

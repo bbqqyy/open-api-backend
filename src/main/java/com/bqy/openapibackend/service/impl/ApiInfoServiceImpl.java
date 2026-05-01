@@ -18,6 +18,7 @@ import com.bqy.openapibackend.model.vo.ApiApplyVO;
 import com.bqy.openapibackend.model.vo.ApiInfoDetailVO;
 import com.bqy.openapibackend.model.vo.ApiInfoVO;
 import com.bqy.openapibackend.service.IApiInfoService;
+import com.bqy.openapibackend.service.IApiStatisticsService;
 import com.bqy.openapibackend.util.DynamicApiUtil;
 import com.bqy.openapibackend.util.LoginUserUtils;
 import com.bqy.openapibackend.util.RedisRateLimiter;
@@ -81,10 +82,13 @@ public class ApiInfoServiceImpl implements IApiInfoService {
     private ApiCallLogDao apiCallLogDao;
 
     @Resource
-    private ApiStatisticsDao apiStatisticsDao;
+    private IApiStatisticsService apiStatisticsService;
 
     @Resource
     private ApiAnalysisReportDao apiAnalysisReportDao;
+
+    @Resource
+    private ApiCategoryDao apiCategoryDao;
 
     @Resource
     private LoginUserUtils loginUserUtils;
@@ -96,14 +100,14 @@ public class ApiInfoServiceImpl implements IApiInfoService {
     public Boolean addApiInfo(ApiInfoAddRequest apiInfoAddRequest, HttpServletRequest request) {
         User user = loginUserUtils.getLoginUser(request);
         ApiInfo apiInfo = new ApiInfo();
-        apiInfo.setApiName(apiInfo.getApiName());
-        apiInfo.setApiDescription(apiInfo.getApiDescription());
+        apiInfo.setApiName(apiInfoAddRequest.getApiName());
+        apiInfo.setApiDescription(apiInfoAddRequest.getApiDescription());
         if (ObjectUtils.isEmpty(apiInfoAddRequest.getCategoryId())) {
             apiInfo.setCategoryId(CommonConstant.NOT_CLASSIFIED);
         }
-        apiInfo.setCategoryId(apiInfo.getCategoryId());
-        apiInfo.setUrl(apiInfo.getUrl());
-        apiInfo.setMethod(apiInfo.getMethod());
+        apiInfo.setCategoryId(apiInfoAddRequest.getCategoryId());
+        apiInfo.setUrl(apiInfoAddRequest.getUrl());
+        apiInfo.setMethod(apiInfoAddRequest.getMethod());
         apiInfo.setStatus(ApiStatusEnum.WAITING_RELEASE.getCode());
         apiInfo.setIsOnline(ApiOnlineEnum.OFFLINE.getCode());
         apiInfo.setUserId(user.getId());
@@ -131,20 +135,13 @@ public class ApiInfoServiceImpl implements IApiInfoService {
     public Page<ApiInfoVO> getApiPage(ApiInfoQueryRequest request) {
         Page<ApiInfo> apiInfoPage = apiInfoDao.getApiPage(request);
         List<ApiInfo> apiInfoList = apiInfoPage.getRecords();
-
-        // 批量查询用户信息
-        List<Long> userIds = apiInfoList.stream()
-                .map(ApiInfo::getUserId)
-                .distinct()
-                .toList();
-        List<User> userList = userDao.listUserByIds(userIds);
-        Map<Long, String> userMap = userList.stream()
-                .collect(java.util.stream.Collectors.toMap(User::getId, User::getUserName));
-
         List<ApiInfoVO> apiInfoVOList = apiInfoList.stream().map(apiInfo -> {
             ApiInfoVO apiInfoVO = new ApiInfoVO();
             BeanUtil.copyProperties(apiInfo, apiInfoVO);
-            apiInfoVO.setUserName(userMap.getOrDefault(apiInfo.getUserId(), "未知用户"));
+            User user = userDao.getUserById(apiInfo.getUserId());
+            apiInfoVO.setUserName(user.getUserName());
+            apiInfoVO.setUrl(apiUrl + apiInfo.getId());
+            fillCategoryInfo(apiInfoVO, apiInfo.getCategoryId());
             return apiInfoVO;
         }).toList();
         Page<ApiInfoVO> apiInfoVOPage = new Page<>(apiInfoPage.getCurrent(), apiInfoPage.getSize(), apiInfoPage.getTotal());
@@ -161,6 +158,8 @@ public class ApiInfoServiceImpl implements IApiInfoService {
             BeanUtil.copyProperties(apiInfo, apiInfoVO);
             User user = userDao.getUserById(apiInfo.getUserId());
             apiInfoVO.setUserName(user.getUserName());
+            apiInfoVO.setUrl(apiUrl + apiInfo.getId());
+            fillCategoryInfo(apiInfoVO, apiInfo.getCategoryId());
             return apiInfoVO;
         }).toList();
         Page<ApiInfoVO> apiInfoVOPage = new Page<>(apiInfoPage.getCurrent(), apiInfoPage.getSize(), apiInfoPage.getTotal());
@@ -227,6 +226,22 @@ public class ApiInfoServiceImpl implements IApiInfoService {
     }
 
     @Override
+    public Boolean releaseApiInfo(ApiInfoLineRequest request, HttpServletRequest servletRequest) {
+        User user = loginUserUtils.getLoginUser(servletRequest);
+        ApiInfo apiInfo = apiInfoDao.getApiInfoById(request.getApiId());
+        ThrowUtils.throwIf(ObjectUtils.isEmpty(apiInfo), StatusCode.NOT_FOUND_ERROR);
+        ThrowUtils.throwIf(ObjectUtils.notEqual(user.getId(), apiInfo.getUserId()), StatusCode.NO_AUTH_ERROR);
+        ThrowUtils.throwIf(
+                ObjectUtils.notEqual(apiInfo.getStatus(), ApiStatusEnum.WAITING_RELEASE.getCode())
+                && ObjectUtils.notEqual(apiInfo.getStatus(), ApiStatusEnum.RELEASE_FAIL.getCode()),
+                "只有待发布或发布失败的API才能提交发布");
+        apiInfo.setStatus(ApiStatusEnum.RELEASING.getCode());
+        boolean result = apiInfoDao.updateById(apiInfo);
+        ThrowUtils.throwIf(!result, "状态更新失败，数据库发生异常");
+        return Boolean.TRUE;
+    }
+
+    @Override
     public Page<ApiInfoVO> getMyApiPage(ApiInfoQueryRequest request, HttpServletRequest httpServletRequest) {
         User user = loginUserUtils.getLoginUser(httpServletRequest);
         Page<ApiInfo> apiInfoPage = apiInfoDao.getMyApiPage(request, user.getId());
@@ -235,6 +250,8 @@ public class ApiInfoServiceImpl implements IApiInfoService {
             ApiInfoVO apiInfoVO = new ApiInfoVO();
             BeanUtil.copyProperties(apiInfo, apiInfoVO);
             apiInfoVO.setUserName(user.getUserName());
+            // 保留 ApiInfo.url 原始值，供创建者查看和编辑真实地址
+            fillCategoryInfo(apiInfoVO, apiInfo.getCategoryId());
             return apiInfoVO;
         }).toList();
         Page<ApiInfoVO> apiInfoVOPage = new Page<>(apiInfoPage.getCurrent(), apiInfoPage.getSize(), apiInfoPage.getTotal());
@@ -270,6 +287,13 @@ public class ApiInfoServiceImpl implements IApiInfoService {
         apiInfoDetailVO.setUserName(user.getUserName());
         apiInfoDetailVO.setCreateTime(apiInfo.getCreateTime());
         apiInfoDetailVO.setUpdateTime(apiInfo.getUpdateTime());
+        apiInfoDetailVO.setCategoryId(apiInfo.getCategoryId());
+        if (apiInfo.getCategoryId() != null && apiInfo.getCategoryId() > 0) {
+            ApiCategory category = apiCategoryDao.getById(apiInfo.getCategoryId());
+            if (category != null) {
+                apiInfoDetailVO.setCategoryName(category.getName());
+            }
+        }
         return apiInfoDetailVO;
     }
 
@@ -278,6 +302,22 @@ public class ApiInfoServiceImpl implements IApiInfoService {
         User loginUser = loginUserUtils.getLoginUser(request);
         ApiInfo apiInfo = apiInfoDao.getApiInfoById(apiId);
         ThrowUtils.throwIf(ObjectUtils.isEmpty(apiInfo), StatusCode.NOT_FOUND_ERROR);
+
+        // 查询是否存在历史申请记录
+        ApiPermission existing = apiPermissionDao.getByApiIdAndUserId(apiId, loginUser.getId());
+        if (existing != null) {
+            String status = existing.getStatus();
+            // 已通过或审核中，不允许重复申请
+            ThrowUtils.throwIf(ApiApplyConstant.APPROVED.equals(status), "您已获得该接口的调用权限，无需重复申请");
+            ThrowUtils.throwIf(ApiApplyConstant.PENDING.equals(status), "您的申请正在审核中，请勿重复申请");
+            // 申请被拒绝，重置状态为待审核
+            existing.setStatus(ApiApplyConstant.PENDING);
+            boolean result = apiPermissionDao.updateById(existing);
+            ThrowUtils.throwIf(!result, "申请失败，数据库发生异常");
+            return Boolean.TRUE;
+        }
+
+        // 不存在历史记录，新建申请
         ApiPermission apiPermission = new ApiPermission();
         apiPermission.setApiId(apiId);
         apiPermission.setUserId(loginUser.getId());
@@ -328,9 +368,13 @@ public class ApiInfoServiceImpl implements IApiInfoService {
         User loginUser = loginUserUtils.getLoginUser(request);
         ApiInfo apiInfo = apiInfoDao.getById(apiId);
         ThrowUtils.throwIf(ObjectUtils.isEmpty(apiInfo), StatusCode.NOT_FOUND_ERROR);
-        ApiPermission apiPermission = apiPermissionDao.getByApiIdAndUserId(apiId, loginUser.getId());
-        ThrowUtils.throwIf(ObjectUtils.isEmpty(apiPermission),StatusCode.NOT_FOUND_ERROR);
-        ThrowUtils.throwIf(!StringUtils.equals(ApiApplyConstant.APPROVED, apiPermission.getStatus()), StatusCode.NO_AUTH_ERROR);
+        // API 拥有者调用自己的接口，无需检查 apiPermission
+        boolean isOwner = ObjectUtils.equals(loginUser.getId(), apiInfo.getUserId());
+        if (!isOwner) {
+            ApiPermission apiPermission = apiPermissionDao.getByApiIdAndUserId(apiId, loginUser.getId());
+            ThrowUtils.throwIf(ObjectUtils.isEmpty(apiPermission), StatusCode.NOT_FOUND_ERROR);
+            ThrowUtils.throwIf(!StringUtils.equals(ApiApplyConstant.APPROVED, apiPermission.getStatus()), StatusCode.NO_AUTH_ERROR);
+        }
         ThrowUtils.throwIf(ObjectUtils.notEqual(ApiOnlineEnum.ONLINE.getCode(), apiInfo.getIsOnline()) || ObjectUtils.notEqual(ApiStatusEnum.RELEASE_SUCCESS.getCode(), apiInfo.getStatus()), "不能调用未上线或者未发布成功的接口");
         ApiLimit apiLimit = apiLimitDao.getByApiId(apiId);
         ThrowUtils.throwIf(ObjectUtils.isEmpty(apiLimit), StatusCode.NOT_FOUND_ERROR);
@@ -393,15 +437,8 @@ public class ApiInfoServiceImpl implements IApiInfoService {
             apiCallLog.setRequestParam(JSONUtil.toJsonStr(params));
         }
 
-        ApiStatistics apiStatistics = apiStatisticsDao.getByApiId(apiId);
-        if (ObjectUtils.isEmpty(apiStatistics)) {
-            apiStatistics = new ApiStatistics();
-            apiStatistics.setApiId(apiId);
-            apiStatistics.setCallCount(0);
-            apiStatistics.setSuccessCount(0);
-            apiStatistics.setFailCount(0);
-        }
         StopWatch stopWatch = new StopWatch();
+        boolean callSuccess = false;
         try {
             stopWatch.start();
             response = dynamicApiUtil.request(
@@ -413,8 +450,7 @@ public class ApiInfoServiceImpl implements IApiInfoService {
                     Object.class
             );
             stopWatch.stop();
-            apiStatistics.setSuccessCount(apiStatistics.getSuccessCount() + 1);
-            apiStatistics.setCallCount(apiStatistics.getCallCount() + 1);
+            callSuccess = true;
             apiCallLog.setResponseTime(stopWatch.getTotalTimeMillis());
             apiCallLog.setStatus(ApiInvokeStatus.SUCCESS);
             return response;
@@ -422,24 +458,17 @@ public class ApiInfoServiceImpl implements IApiInfoService {
             if (stopWatch.isRunning()) {
                 stopWatch.stop();
             }
-            apiStatistics.setFailCount(apiStatistics.getFailCount() + 1);
-            apiStatistics.setCallCount(apiStatistics.getCallCount() + 1);
             apiCallLog.setStatus(ApiInvokeStatus.FAIL);
             apiCallLog.setResponseTime(stopWatch.getTotalTimeMillis());
-            throw new OpzException(StatusCode.SYSTEM_ERROR,"接口调用异常:"+e.getMessage());
-        }finally {
+            throw new OpzException(StatusCode.SYSTEM_ERROR, "接口调用异常:" + e.getMessage());
+        } finally {
+            // 通过 Service 层记录统计，职责分离
+            apiStatisticsService.recordCall(apiId, callSuccess);
             try {
-                apiStatisticsDao.saveOrUpdate(apiStatistics);
-            }catch (Exception e){
-                log.error("保存API统计信息失败, apiId={}", apiId, e);
-            }
-            try{
                 apiCallLogDao.save(apiCallLog);
-            }catch (Exception e){
+            } catch (Exception e) {
                 log.error("保存API调用日志失败, apiId={}", apiId, e);
             }
-
-
         }
 
     }
@@ -450,10 +479,27 @@ public class ApiInfoServiceImpl implements IApiInfoService {
                     ApiApplyVO apiApplyVO = new ApiApplyVO();
                     apiApplyVO.setId(apiPermission.getId());
                     apiApplyVO.setApiId(apiPermission.getApiId());
+                    // API 信息
                     ApiInfo apiInfo = apiInfoDao.getApiInfoById(apiPermission.getApiId());
-                    apiApplyVO.setApiName(apiInfo.getApiName());
+                    if (apiInfo != null) {
+                        apiApplyVO.setApiName(apiInfo.getApiName());
+                    }
+                    // 申请人信息
+                    apiApplyVO.setUserId(apiPermission.getUserId());
+                    User applicant = userDao.getUserById(apiPermission.getUserId());
+                    if (applicant != null) {
+                        apiApplyVO.setApplicantName(applicant.getUserName());
+                    }
+                    // API 拥有者信息
                     apiApplyVO.setOwnerId(apiPermission.getOwnerId());
+                    User owner = userDao.getUserById(apiPermission.getOwnerId());
+                    if (owner != null) {
+                        apiApplyVO.setOwnerName(owner.getUserName());
+                    }
+                    // 状态和时间
                     apiApplyVO.setStatus(apiPermission.getStatus());
+                    apiApplyVO.setCreateTime(apiPermission.getCreateTime());
+                    apiApplyVO.setUpdateTime(apiPermission.getUpdateTime());
                     return apiApplyVO;
                 }).toList();
         Page<ApiApplyVO> apiApplyVOPage = new Page<>(apiPermissionPage.getCurrent(), apiPermissionPage.getSize(), apiPermissionPage.getTotal());
@@ -503,7 +549,7 @@ public class ApiInfoServiceImpl implements IApiInfoService {
             apiCallLogDao.deleteByApiId(apiId);
 
             // 5.7 删除API统计数据（api_statistics 表关联 apiId）
-            apiStatisticsDao.deleteByApiId(apiId);
+            apiStatisticsService.deleteByApiId(apiId);
 
             // 5.8 删除API分析报告（api_analysis_report 表关联 apiId）
             apiAnalysisReportDao.deleteByApiId(apiId);
@@ -517,6 +563,19 @@ public class ApiInfoServiceImpl implements IApiInfoService {
         } catch (Exception e) {
             log.error("API删除失败，apiId={}, 错误信息：{}", apiId, e.getMessage(), e);
             throw new OpzException(StatusCode.SYSTEM_ERROR, "API删除失败：" + e.getMessage());
+        }
+    }
+
+    /**
+     * 填充分类信息到 ApiInfoVO
+     */
+    private void fillCategoryInfo(ApiInfoVO vo, Long categoryId) {
+        vo.setCategoryId(categoryId);
+        if (categoryId != null && categoryId > 0) {
+            ApiCategory category = apiCategoryDao.getById(categoryId);
+            if (category != null) {
+                vo.setCategoryName(category.getName());
+            }
         }
     }
 
