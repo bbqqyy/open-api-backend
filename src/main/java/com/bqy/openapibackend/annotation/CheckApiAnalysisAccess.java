@@ -20,5 +20,11 @@ public @interface CheckApiAnalysisAccess {
      * API ID 的参数字段名，默认为 "apiId"
      */
     String apiFieldName() default "apiId";
+
+    /**
+     * 是否将本次请求计入每日使用次数（默认 true）
+     * 设置为 false 时只做权限校验，不消耗限流配额
+     */
+    boolean countAsUsage() default true;
 }
 

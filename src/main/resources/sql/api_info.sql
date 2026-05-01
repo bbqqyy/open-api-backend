@@ -1,6 +1,6 @@
 use open_api;
-drop table if exists api;
-CREATE TABLE api
+drop table if exists api_info;
+CREATE TABLE api_info
 (
 
     id              BIGINT PRIMARY KEY AUTO_INCREMENT COMMENT 'API ID',

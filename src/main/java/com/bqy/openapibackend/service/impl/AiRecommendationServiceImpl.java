@@ -16,10 +16,7 @@ import com.bqy.openapibackend.service.IAiRecommendationService;
 import jakarta.annotation.Resource;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.ObjectUtils;
-import org.reactivestreams.Publisher;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
-import reactor.core.publisher.FluxSink;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -108,40 +105,6 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
             // 降级处理：返回基础推荐
             return generateBasicRecommendation(request.getUserQuery());
         }
-    }
-
-    @Override
-    public Publisher<String> recommendApisByNaturalLanguageStream(AiChatRequest request) {
-        return Flux.create(sink -> {
-            try {
-                // 1. 获取所有已发布的 API
-                List<ApiInfo> publishedApis = getPublishedApis();
-
-                if (publishedApis.isEmpty()) {
-                    sink.next("data: " + JSONUtil.toJsonStr(
-                        AiRecommendationVO.builder()
-                                .requirementAnalysis("未找到已发布的 API")
-                                .hasRecommendation(false)
-                                .recommendationReason("系统中暂无可用 API")
-                                .recommendedApis(List.of())
-                                .build()
-                    ));
-                    sink.complete();
-                    return;
-                }
-
-                // 2. 构建 API 上下文和用户提示词
-                String apiContext = buildApiContext(publishedApis);
-                String userPrompt = buildUserPrompt(request.getUserQuery(), apiContext);
-
-                // 3. 流式调用 AI
-                callZhipuAIForRecommendationStream(userPrompt, sink, publishedApis);
-
-            } catch (Exception e) {
-                log.error("流式推荐失败", e);
-                sink.error(e);
-            }
-        });
     }
 
     /**
@@ -245,70 +208,6 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
         } catch (Exception e) {
             log.error("调用智谱 AI API 失败，降级使用模拟推荐", e);
             return generateMockRecommendation();
-        }
-    }
-
-    /**
-     * 流式调用智谱 AI 获取推荐结果
-     */
-    private void callZhipuAIForRecommendationStream(String userPrompt, FluxSink<String> sink, List<ApiInfo> apis) {
-        try {
-            if (!zhipuAiConfig.isEnabled()) {
-                log.warn("智谱 AI 未启用，使用模拟推荐");
-                sink.next("data: " + generateMockRecommendation());
-                sink.complete();
-                return;
-            }
-
-            ZhipuAiClient client = ZhipuAiClient.builder().ofZHIPU()
-                    .apiKey(zhipuAiConfig.getKey())
-                    .build();
-
-            ChatCompletionCreateParams request = ChatCompletionCreateParams.builder()
-                    .model(zhipuAiConfig.getModel())
-                    .messages(Arrays.asList(
-                            ChatMessage.builder()
-                                    .role(ChatMessageRole.SYSTEM.value())
-                                    .content(SYSTEM_PROMPT)
-                                    .build(),
-                            ChatMessage.builder()
-                                    .role(ChatMessageRole.USER.value())
-                                    .content(userPrompt)
-                                    .build()
-                    ))
-                    .stream(true)
-                    .temperature(0.7f)
-                    .maxTokens(2000)
-                    .build();
-
-            ChatCompletionResponse response = client.chat().createChatCompletion(request);
-
-            if (response.isSuccess() && response.getFlowable() != null) {
-                response.getFlowable().blockingForEach(data -> {
-                    try {
-                        if (data.getChoices() != null && !data.getChoices().isEmpty()) {
-                            Delta delta = data.getChoices().get(0).getDelta();
-                            if (delta != null && delta.getContent() != null) {
-                                String content = delta.getContent();
-                                sink.next("data: " + content);
-                            }
-                        }
-                    } catch (Exception e) {
-                        log.error("处理流式数据块失败", e);
-                    }
-                });
-                log.info("流式推荐完成");
-                sink.complete();
-            } else {
-                log.error("流式响应失败: {}", response.getMsg());
-                sink.next("data: " + generateMockRecommendation());
-                sink.complete();
-            }
-
-        } catch (Exception e) {
-            log.error("流式调用智谱 AI API 失败", e);
-            sink.next("data: " + generateMockRecommendation());
-            sink.complete();
         }
     }
 

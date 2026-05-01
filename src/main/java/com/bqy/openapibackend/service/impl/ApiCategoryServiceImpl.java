@@ -7,7 +7,6 @@ import com.bqy.openapibackend.common.CommonConstant;
 import com.bqy.openapibackend.dao.ApiCategoryDao;
 import com.bqy.openapibackend.dao.ApiInfoDao;
 import com.bqy.openapibackend.model.entity.ApiCategory;
-import com.bqy.openapibackend.mapper.ApiCategoryMapper;
 import com.bqy.openapibackend.model.entity.ApiInfo;
 import com.bqy.openapibackend.model.request.apicategory.ApiCategoryAddRequest;
 import com.bqy.openapibackend.model.request.apicategory.ApiCategoryDeleteRequest;
@@ -15,14 +14,12 @@ import com.bqy.openapibackend.model.request.apicategory.ApiCategoryQueryRequest;
 import com.bqy.openapibackend.model.request.apicategory.ApiCategoryUpdateRequest;
 import com.bqy.openapibackend.model.vo.ApiCategoryVO;
 import com.bqy.openapibackend.service.IApiCategoryService;
-import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.bqy.openapibackend.util.ThrowUtils;
 import jakarta.annotation.Resource;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 /**
  * <p>
@@ -71,6 +68,15 @@ public class ApiCategoryServiceImpl implements IApiCategoryService {
         boolean result = apiCategoryDao.updateById(apiCategory);
         ThrowUtils.throwIf(!result, "更新失败，数据库异常");
         return Boolean.TRUE;
+    }
+
+    @Override
+    public List<ApiCategoryVO> listApiCategories() {
+        return apiCategoryDao.list().stream().map(apiCategory -> {
+            ApiCategoryVO vo = new ApiCategoryVO();
+            BeanUtil.copyProperties(apiCategory, vo);
+            return vo;
+        }).toList();
     }
 
     @Override

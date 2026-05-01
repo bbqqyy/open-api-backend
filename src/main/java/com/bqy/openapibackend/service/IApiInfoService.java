@@ -33,6 +33,8 @@ public interface IApiInfoService {
 
     Boolean changeApiLineStatus(ApiInfoLineRequest apiInfoLineRequest, HttpServletRequest request);
 
+    Boolean releaseApiInfo(ApiInfoLineRequest request, HttpServletRequest servletRequest);
+
     Page<ApiInfoVO> getMyApiPage(ApiInfoQueryRequest request, HttpServletRequest httpServletRequest);
 
     ApiInfoDetailVO getDetailedApiInfo(Long apiId);

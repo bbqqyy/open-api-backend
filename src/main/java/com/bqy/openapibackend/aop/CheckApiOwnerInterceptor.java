@@ -45,13 +45,27 @@ public class CheckApiOwnerInterceptor {
     }
 
     private Long extractApiId(Object[] args, String apiFieldName) {
+        // 第一轮：优先从请求体对象中通过反射提取（支持 @RequestBody 场景）
         for (Object arg : args) {
+            if (arg == null || arg instanceof Long || arg instanceof HttpServletRequest
+                    || arg instanceof jakarta.servlet.http.HttpServletResponse) {
+                continue;
+            }
             try {
                 String methodName = "get" + apiFieldName.substring(0, 1).toUpperCase() + apiFieldName.substring(1);
                 Method method = arg.getClass().getMethod(methodName);
-                return (Long) method.invoke(arg);
+                Object value = method.invoke(arg);
+                if (value instanceof Long) {
+                    return (Long) value;
+                }
             } catch (Exception e) {
-                log.error("Exception:{}", e.getMessage(), e);
+                log.debug("Failed to extract API ID from parameter via getter", e);
+            }
+        }
+        // 第二轮：尝试直接匹配 Long 类型参数（支持 @PathVariable Long apiId 场景）
+        for (Object arg : args) {
+            if (arg instanceof Long) {
+                return (Long) arg;
             }
         }
         throw new IllegalArgumentException("无法从请求参数中提取 apiId");

@@ -52,6 +52,7 @@ public class ApiInfoDao extends ServiceImpl<ApiInfoMapper, ApiInfo> {
                 .like(StringUtils.isNotBlank(request.getApiName()), ApiInfo::getApiName, request.getApiName())
                 .like(StringUtils.isNotBlank(request.getApiDescription()), ApiInfo::getApiDescription, request.getApiDescription())
                 .eq(ObjectUtils.isNotEmpty(request.getIsOnline()), ApiInfo::getIsOnline, request.getIsOnline())
+                .eq(ObjectUtils.isNotEmpty(request.getStatus()),ApiInfo::getStatus,request.getStatus())
                 .page(new Page<>(request.getCurrent(), request.getPageSize()));
     }
 

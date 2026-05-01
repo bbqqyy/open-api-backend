@@ -3,7 +3,6 @@ package com.bqy.openapibackend.service;
 import com.bqy.openapibackend.model.entity.ApiAnalysisReport;
 import com.bqy.openapibackend.model.vo.ApiAnalysisReportListVO;
 import com.bqy.openapibackend.model.vo.ApiAnalysisReportVO;
-import org.reactivestreams.Publisher;
 
 import java.util.List;
 
@@ -12,13 +11,6 @@ import java.util.List;
  * 基于 AI 对 API 调用数据进行分析，生成分析报告
  */
 public interface IApiAnalysisService {
-
-    /**
-     * 生成 API 分析报告（流式输出）
-     * @param apiId API ID
-     * @return 流式发布者，输出分析报告内容
-     */
-    Publisher<String> generateAnalysisReportStream(Long apiId);
 
     /**
      * 获取 API 分析报告数据
@@ -49,13 +41,6 @@ public interface IApiAnalysisService {
      * @return 报告摘要列表
      */
     List<ApiAnalysisReportListVO> listReports(Long apiId, int limit);
-
-    /**
-     * 清空某个 API 的所有报告
-     * @param apiId API ID
-     * @return 删除的记录数
-     */
-    int clearReports(Long apiId);
 
     /**
      * 生成 AI 分析报告并保存到数据库

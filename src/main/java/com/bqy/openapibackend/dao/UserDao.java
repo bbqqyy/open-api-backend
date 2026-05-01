@@ -26,14 +26,24 @@ public class UserDao extends ServiceImpl<UserMapper, User> {
                 .count() > 0;
     }
 
+    /**
+     * 按账号和密码查询用户（兼容旧版 MD5 逻辑，已废弃，请使用 getByUserAccount + BCrypt 验证）
+     * @deprecated 使用 {@link #getByUserAccount(String)} 替代
+     */
+    @Deprecated
     public User getLoginUser(String userAccount, String userPassword) {
-//        LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<>();
-//        wrapper.eq(User::getUserAccount,userAccount);
-//        wrapper.eq(User::getUserPassword,userPassword);
-//        return this.getOne(wrapper);
         return this.lambdaQuery()
                 .eq(User::getUserAccount, userAccount)
                 .eq(User::getUserPassword, userPassword)
+                .one();
+    }
+
+    /**
+     * 按账号查询用户（用于 BCrypt 密码验证场景）
+     */
+    public User getByUserAccount(String userAccount) {
+        return this.lambdaQuery()
+                .eq(User::getUserAccount, userAccount)
                 .one();
     }
 
@@ -41,15 +51,6 @@ public class UserDao extends ServiceImpl<UserMapper, User> {
         return this.lambdaQuery()
                 .eq(User::getId, id)
                 .one();
-    }
-
-    public List<User> listUserByIds(List<Long> ids) {
-        if (ids == null || ids.isEmpty()) {
-            return java.util.Collections.emptyList();
-        }
-        return this.lambdaQuery()
-                .in(User::getId, ids)
-                .list();
     }
 
     public List<User> listByRequest(UserQueryRequest request) {

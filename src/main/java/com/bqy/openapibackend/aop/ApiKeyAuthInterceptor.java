@@ -152,23 +152,33 @@ public class ApiKeyAuthInterceptor {
 
     /**
      * 获取请求体内容
+     *
+     * <p>若 request 已经被 {@link ContentCachingRequestWrapper} 包装，
+     * 则先触发一次读取来填充缓存，然后从缓存中获取内容，确保后续 Controller 仍可读取 body。
+     * 若未包装，则直接读取（签名验证后 body 已消耗，但 GET/DELETE 无 body 不影响）。
      */
     private String getRequestBody(HttpServletRequest request) {
         try {
-            // 包装 request 以便多次读取
-            if (!(request instanceof ContentCachingRequestWrapper)) {
-                request = new ContentCachingRequestWrapper(request);
-            }
-
-            StringBuilder body = new StringBuilder();
-            try (BufferedReader reader = request.getReader()) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    body.append(line);
+            if (request instanceof ContentCachingRequestWrapper cachingRequest) {
+                // 触发内容读取填充缓存（如果尚未读取）
+                byte[] content = cachingRequest.getContentAsByteArray();
+                if (content.length == 0) {
+                    // 缓存为空，尝试读取一次以触发缓存
+                    org.springframework.util.StreamUtils.copyToByteArray(cachingRequest.getInputStream());
+                    content = cachingRequest.getContentAsByteArray();
                 }
+                return new String(content, java.nio.charset.StandardCharsets.UTF_8);
+            } else {
+                // 未使用缓存包装，直接读取 Reader（注意：这会消耗 body，影响 POST 场景）
+                StringBuilder body = new StringBuilder();
+                try (BufferedReader reader = request.getReader()) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        body.append(line);
+                    }
+                }
+                return body.toString();
             }
-
-            return body.toString();
         } catch (IOException e) {
             log.error("读取请求体失败", e);
             return "";

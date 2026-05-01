@@ -5,6 +5,7 @@ import com.bqy.openapibackend.common.StatusCode;
 import com.bqy.openapibackend.model.entity.User;
 import com.bqy.openapibackend.util.LoginUserUtils;
 import com.bqy.openapibackend.util.ThrowUtils;
+import jakarta.annotation.Resource;
 import jakarta.servlet.http.HttpServletRequest;
 import org.apache.commons.lang3.StringUtils;
 import org.aspectj.lang.ProceedingJoinPoint;
@@ -19,7 +20,7 @@ import org.springframework.web.context.request.ServletRequestAttributes;
 @Component
 public class AuthInterceptor {
 
-    @jakarta.annotation.Resource
+    @Resource
     private LoginUserUtils loginUserUtils;
 
     @Around("@annotation(authorCheck)")
