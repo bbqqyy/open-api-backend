@@ -98,10 +98,10 @@ public class AiRecommendationVO implements Serializable {
         private String apiDescription;
 
         /**
-         * API 分类
+         * API 分类名称
          */
-        @Schema(description = "API 分类", example = "用户管理")
-        private String apiCategory;
+        @Schema(description = "API 所属分类名称", example = "数据分析")
+        private String categoryName;
 
         /**
          * API 请求方法
@@ -111,13 +111,14 @@ public class AiRecommendationVO implements Serializable {
         private String httpMethod;
 
         /**
-         * API 请求地址
+         * 平台调用路径（隐藏真实后端 URL，统一通过平台代理调用）
+         * 格式：/apiInfo/invoke/{apiId}
          */
         @Schema(
-            description = "API 请求地址",
-            example = "/api/users/{userId}"
+            description = "平台调用路径，通过平台代理转发，不暴露真实后端地址",
+            example = "/apiInfo/invoke/123"
         )
-        private String url;
+        private String invokeUrl;
 
         /**
          * 匹配度评分

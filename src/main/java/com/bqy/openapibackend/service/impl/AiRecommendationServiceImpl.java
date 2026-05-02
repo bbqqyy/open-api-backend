@@ -4,8 +4,10 @@ import ai.z.openapi.ZhipuAiClient;
 import ai.z.openapi.service.model.*;
 import cn.hutool.json.JSONUtil;
 import com.bqy.openapibackend.config.ZhipuAiConfig;
+import com.bqy.openapibackend.dao.ApiCategoryDao;
 import com.bqy.openapibackend.dao.ApiInfoDao;
 import com.bqy.openapibackend.dao.UserDao;
+import com.bqy.openapibackend.model.entity.ApiCategory;
 import com.bqy.openapibackend.model.entity.ApiInfo;
 import com.bqy.openapibackend.model.entity.User;
 import com.bqy.openapibackend.model.enums.ApiStatusEnum;
@@ -40,6 +42,9 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
     private UserDao userDao;
 
     @Resource
+    private ApiCategoryDao apiCategoryDao;
+
+    @Resource
     private ZhipuAiConfig zhipuAiConfig;
 
     /**
@@ -49,8 +54,10 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
         你是一个专业的 API 推荐助手。你的职责是：
         1. 理解用户的自然语言需求描述
         2. 分析用户的实际需求
-        3. 从提供的 API 列表中推荐最匹配的 API
-        4. 详细解释推荐原因
+        3. 从提供的 API 列表中尽可能推荐所有匹配度较高的 API，不要局限推荐数量，最多推荐 5 个
+        4. 按匹配度从高到低排序
+        5. 详细解释每个 API 的推荐原因
+        6. 不要在推荐理由中提及任何内部 URL 或接口地址
 
         你必须按照以下 JSON 格式返回推荐结果（不要包含任何其他内容）：
         {
@@ -61,7 +68,7 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
                 {
                     "apiId": 123,
                     "apiName": "API 名称",
-                    "reason": "为什么推荐这个 API",
+                    "reason": "为什么推荐这个 API（不要包含 URL）",
                     "matchScore": 95
                 }
             ]
@@ -119,20 +126,16 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
 
     /**
      * 构建 API 上下文信息供 AI 理解
+     * 注意：不将真实 URL 传入，防止 AI 将内部地址暴露在推荐理由中
      */
     private String buildApiContext(List<ApiInfo> apis) {
         StringBuilder context = new StringBuilder("可用的 API 列表：\n");
 
         for (ApiInfo api : apis) {
-            User creator = userDao.getUserById(api.getUserId());
-            String creatorName = creator != null ? creator.getUserName() : "未知";
-
             context.append("\n- ID: ").append(api.getId())
                     .append(", 名称: ").append(api.getApiName())
                     .append(", 描述: ").append(api.getApiDescription())
-                    .append(", 方法: ").append(MethodEnum.getNameByCode(api.getMethod()))
-                    .append(", URL: ").append(api.getUrl())
-                    .append(", 创建者: ").append(creatorName);
+                    .append(", HTTP 方法: ").append(MethodEnum.getNameByCode(api.getMethod()));
         }
 
         return context.toString();
@@ -178,29 +181,20 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
 
             ChatCompletionResponse response = client.chat().createChatCompletion(request);
 
-            StringBuilder result = new StringBuilder();
-
-            if (response.isSuccess() && response.getFlowable() != null) {
-                response.getFlowable().blockingForEach(data -> {
-                    try {
-                        if (data.getChoices() != null && !data.getChoices().isEmpty()) {
-                            Delta delta = data.getChoices().get(0).getDelta();
-                            if (delta != null && delta.getContent() != null) {
-                                result.append(delta.getContent());
-                            }
-                        }
-                    } catch (Exception e) {
-                        log.error("处理响应数据块失败", e);
+            // stream=false 时，结果在 getData().getChoices() 中，getFlowable() 为 null
+            if (response.isSuccess() && response.getData() != null) {
+                ModelData data = response.getData();
+                if (data.getChoices() != null && !data.getChoices().isEmpty()) {
+                    ChatMessage message = data.getChoices().get(0).getMessage();
+                    if (message != null && !ObjectUtils.isEmpty(message.getContent())) {
+                        String content = message.getContent().toString();
+                        log.info("成功调用智谱 AI API 进行推荐，token 用量: {}", data.getUsage());
+                        return content;
                     }
-                });
-
-                String content = result.toString();
-                if (!ObjectUtils.isEmpty(content)) {
-                    log.info("成功调用智谱 AI API 进行推荐");
-                    return content;
                 }
+                log.warn("智谱 AI 返回了空内容，降级处理");
             } else {
-                log.error("智谱 AI API 返回错误: {}", response.getMsg());
+                log.error("智谱 AI API 返回错误: code={}, msg={}", response.getCode(), response.getMsg());
             }
 
             return generateMockRecommendation();
@@ -212,12 +206,31 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
     }
 
     /**
+     * 从 AI 返回文本中提取纯 JSON 字符串
+     * 处理模型可能返回的 ```json ... ``` markdown 代码块格式
+     */
+    private String extractJson(String aiResponse) {
+        if (aiResponse == null) return "";
+        String trimmed = aiResponse.trim();
+        // 去掉 ```json ... ``` 或 ``` ... ``` 包裹
+        if (trimmed.startsWith("```")) {
+            int firstNewline = trimmed.indexOf('\n');
+            int lastFence = trimmed.lastIndexOf("```");
+            if (firstNewline > 0 && lastFence > firstNewline) {
+                return trimmed.substring(firstNewline + 1, lastFence).trim();
+            }
+        }
+        return trimmed;
+    }
+
+    /**
      * 解析 AI 响应
      */
     private AiRecommendationVO parseAiResponse(String aiResponse, List<ApiInfo> publishedApis) {
         try {
-            // 尝试解析 JSON 响应
-            Map<String, Object> responseMap = JSONUtil.toBean(aiResponse, Map.class);
+            // 去除 markdown 代码块包裹后再解析 JSON
+            String jsonStr = extractJson(aiResponse);
+            Map<String, Object> responseMap = JSONUtil.toBean(jsonStr, Map.class);
 
             List<AiRecommendationVO.RecommendedApiVO> recommendedApis = new ArrayList<>();
 
@@ -231,12 +244,15 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
 
                         if (apiInfo != null) {
                             User creator = userDao.getUserById(apiInfo.getUserId());
+                            String categoryName = resolveCategoryName(apiInfo.getCategoryId());
                             recommendedApis.add(
                                 AiRecommendationVO.RecommendedApiVO.builder()
                                         .apiId(apiId)
                                         .apiName(apiInfo.getApiName())
                                         .apiDescription(apiInfo.getApiDescription())
-                                        .url(apiInfo.getUrl())
+                                        .categoryName(categoryName)
+                                        // 不暴露真实 URL，统一转换为平台代理调用路径
+                                        .invokeUrl("/apiInfo/invoke/" + apiId)
                                         .httpMethod(MethodEnum.getNameByCode(apiInfo.getMethod()))
                                         .matchScore(Integer.parseInt(apiMap.getOrDefault("matchScore", "70").toString()))
                                         .reason(apiMap.getOrDefault("reason", "推荐理由").toString())
@@ -272,11 +288,14 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
                 .limit(3)
                 .map(api -> {
                     User creator = userDao.getUserById(api.getUserId());
+                    String categoryName = resolveCategoryName(api.getCategoryId());
                     return AiRecommendationVO.RecommendedApiVO.builder()
                             .apiId(api.getId())
                             .apiName(api.getApiName())
                             .apiDescription(api.getApiDescription())
-                            .url(api.getUrl())
+                            .categoryName(categoryName)
+                            // 不暴露真实 URL
+                            .invokeUrl("/apiInfo/invoke/" + api.getId())
                             .httpMethod(MethodEnum.getNameByCode(api.getMethod()))
                             .matchScore(70)
                             .reason("该 API 可能与您的需求相关")
@@ -291,6 +310,15 @@ public class AiRecommendationServiceImpl implements IAiRecommendationService {
                 .hasRecommendation(!recommendations.isEmpty())
                 .recommendedApis(recommendations)
                 .build();
+    }
+
+    /**
+     * 根据分类 ID 查询分类名称，查不到时返回空字符串
+     */
+    private String resolveCategoryName(Long categoryId) {
+        if (categoryId == null) return "";
+        ApiCategory category = apiCategoryDao.getById(categoryId);
+        return category != null ? category.getName() : "";
     }
 
     /**
